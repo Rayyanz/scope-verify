@@ -17,7 +17,7 @@ ap.add_argument("--config", default="configs/default.yaml")
 ap.add_argument("--split", default="test")
 args = ap.parse_args()
 cfg = yaml.safe_load(open(args.config))
-judge = VLLMText(cfg["label_judge"], max_tokens=256)
+judge = VLLMText(cfg["label_judge"], max_tokens=256, vllm_kwargs=cfg.get("vllm"))
 
 
 def judge_label(claim, paragraphs):

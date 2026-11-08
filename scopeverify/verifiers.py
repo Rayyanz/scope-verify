@@ -102,10 +102,10 @@ class LLMJudgeVerifier:
     """Score = P(A) / (P(A)+P(B)+P(C)) from first-token log-probabilities."""
     name = "llm_judge"
 
-    def __init__(self, model_id, tp=1):
+    def __init__(self, model_id, vllm_kwargs=None):
         from vllm import LLM, SamplingParams
         from .labels import JUDGE_PROMPT
-        self.llm = LLM(model=model_id, tensor_parallel_size=tp, seed=13)
+        self.llm = LLM(model=model_id, seed=13, **(vllm_kwargs or {}))
         self.tok = self.llm.get_tokenizer()
         self.sp = SamplingParams(temperature=0.0, max_tokens=1, logprobs=20)
         self.prompt = JUDGE_PROMPT

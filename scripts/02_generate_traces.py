@@ -44,7 +44,8 @@ for cond in conditions:
             pert.append(p)
             metas.append({"id": r["id"], **meta, "pool": p["pool"]})
     traces = generate_traces(pert, g["model_id"], retr, k=g["top_k"], max_turns=g["max_turns"],
-                             max_new_tokens=g["max_new_tokens"], closed_book=args.closed_book)
+                             max_new_tokens=g["max_new_tokens"], closed_book=args.closed_book,
+                             vllm_kwargs=cfg.get("vllm"))
     tag = "closedbook" if args.closed_book else cond
     save_jsonl(metas, f"outputs/{args.split}_{tag}_meta.jsonl")
     save_jsonl(traces, f"outputs/{args.split}_{tag}_traces.jsonl")

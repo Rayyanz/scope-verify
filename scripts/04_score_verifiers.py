@@ -24,7 +24,7 @@ filler = load_jsonl("outputs/external_paragraphs.jsonl")[:2000]
 make = {"nli": lambda: NLIVerifier(vc["nli"]),
         "alignscore": lambda: AlignScoreVerifier(vc["alignscore_ckpt"]),
         "minicheck": lambda: MiniCheckVerifier(vc["minicheck"]),
-        "llm_judge": lambda: LLMJudgeVerifier(vc["llm_judge"])}
+        "llm_judge": lambda: LLMJudgeVerifier(vc["llm_judge"], vllm_kwargs=cfg.get("vllm"))}
 
 claims = load_jsonl(f"outputs/{args.split}_claims_labeled.jsonl")
 traces, metas = {}, {}

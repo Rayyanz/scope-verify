@@ -11,7 +11,7 @@
 \usepackage{xcolor}
 \usepackage{tikz}
 \usetikzlibrary{positioning,arrows.meta,fit,backgrounds,calc}
-\usepackage{url}
+\usepackage[hyphens]{url}
 \usepackage[hidelinks]{hyperref}
 
 % ------------------------------------------------------------------
@@ -76,7 +76,7 @@ Section~\ref{sec:related} reviews related work, Section~\ref{sec:methods} descri
 \section{Related Work}\label{sec:related}
 % ==================================================================
 \textbf{Iterative retrieval for multi-hop reasoning.}
-ReAct interleaves reasoning with tool calls~\cite{yao2023react}; IRCoT retrieves after every chain-of-thought sentence~\cite{trivedi2023ircot}; FLARE retrieves when token confidence drops~\cite{jiang2023flare}; Adaptive-RAG routes questions by predicted complexity~\cite{jeong2024adaptive}; and Search-R1 learns when and what to search with reinforcement learning~\cite{jin2025searchr1}. MuSiQue was constructed to reduce the single-hop shortcuts identified in earlier multi-hop datasets~\cite{min2019compositional,trivedi2022musique}. These methods are evaluated mainly by final-answer accuracy, not by the support of each intermediate claim.
+ReAct interleaves reasoning with tool calls~\cite{yao2023react}; IRCoT retrieves after every chain-of-thought sentence~\cite{trivedi2023ircot}; FLARE retrieves when token confidence drops~\cite{jiang2023flare}; Adaptive-RAG routes questions by predicted complexity~\cite{jeong2024adaptive}; and Search-R1 learns when and what to search with reinforcement learning~\cite{jin2025searchr1}, with a follow-up empirical study of design choices for training such reasoning--search interleaved agents~\cite{jin2025empirical}. MuSiQue was constructed to reduce the single-hop shortcuts identified in earlier multi-hop datasets~\cite{min2019compositional,trivedi2022musique}. These methods are evaluated mainly by final-answer accuracy, not by the support of each intermediate claim.
 
 \textbf{Response-level detection and claim-level grounding.}
 Consistency-based~\cite{manakul2023selfcheckgpt} and uncertainty-based~\cite{farquhar2024semantic} detectors operate on whole responses. FActScore decomposes long-form text into atomic facts~\cite{min2023factscore}, and SAFE by Wei and co-authors extends this with search~\cite{wei2024longform}; it is unrelated to the step verifier SAFE by Kwon and co-authors~\cite{kwon2026safe}. Grounding verifiers judge a claim against a document: NLI-based checkers evaluated in TRUE~\cite{honovich2022true}, AlignScore~\cite{zha2023alignscore}, and MiniCheck, which matches large-LLM accuracy on the LLM-AggreFact benchmark at far lower cost~\cite{tang2024minicheck}. These are evaluated mostly on single-turn outputs~\cite{niu2024ragtruth}.
@@ -236,7 +236,7 @@ s_{v,\sigma}(t) = \max_{e\,\in\,\mathrm{chunk}(E_t^{\sigma})} f_v(\ctil_t, e),
 \textbf{Overview.} Fig.~\ref{fig:workflow} shows the framework. HLEP perturbs the gold evidence of one hop per question; the generator produces traces over the (possibly perturbed) pool; steps are segmented and decontextualized; gold labels are constructed; the scope builder assembles each step's evidence under every scope; each verifier scores every (claim, scope) pair while a cost meter records tokens, model calls, and GPU time; placement configurations, including a calibrated cascade, are derived from these scores; and the evaluation module computes metrics with question-level bootstrap intervals. No component is trained: the framework's contribution is the controlled perturbation, the scope protocol, and the calibrated cascade, which together turn existing verifiers into objects of controlled measurement.
 
 \textbf{Model architecture and components.}
-The generator is a Search-R1 model~\cite{jin2025searchr1} built on Qwen2.5-7B~\cite{qwen2024qwen25}, served with vLLM~\cite{kwon2023vllm}; it emits reasoning in \texttt{<think>} tags, queries in \texttt{<search>} tags, receives results in \texttt{<information>} tags, and ends with \texttt{<answer>}. Retrieval uses E5~\cite{wang2022e5} embeddings via Sentence-Transformers~\cite{reimers2019sbert} with cosine similarity over the question's pool. The verifiers are a DeBERTa-v3-large NLI cross-encoder~\cite{he2023debertav3,honovich2022true} whose score is the entailment probability; AlignScore~\cite{zha2023alignscore}; MiniCheck~\cite{tang2024minicheck}; and an open-weight LLM judge from a different model family than the generator, prompted with the annotation rule and scored by the normalized probability of the \textsc{Supported} option. The judge used for labelling is never also evaluated as a verifier.
+The generator is the released Search-R1 checkpoint \nolinkurl{PeterJinGo/SearchR1-nq_hotpotqa_train-qwen2.5-7b-em-ppo}~\cite{jin2025searchr1}, obtained by PPO training of base Qwen2.5-7B~\cite{qwen2024qwen25} on NQ and HotpotQA with an exact-match reward; MuSiQue and 2WikiMultihopQA are therefore outside its training data. It is served with vLLM~\cite{kwon2023vllm} and emits reasoning in \texttt{<think>} tags, queries in \texttt{<search>} tags, receives results in \texttt{<information>} tags, and ends with \texttt{<answer>}. The prompt, the format of the returned results, three passages per search, and a limit of four searches follow the official Search-R1 code. Retrieval uses E5~\cite{wang2022e5} embeddings via Sentence-Transformers~\cite{reimers2019sbert} with cosine similarity over the question's pool. The verifiers are a DeBERTa-v3-large NLI cross-encoder~\cite{he2023debertav3,honovich2022true} whose score is the entailment probability; AlignScore~\cite{zha2023alignscore}; MiniCheck~\cite{tang2024minicheck}; and an LLM judge (Mistral-7B-Instruct-v0.3), from a different model family than the generator, prompted with the annotation rule and scored by the normalized probability of the \textsc{Supported} option. Labels are produced by a separate judge (Llama-3.1-8B-Instruct), which is never evaluated as a verifier.
 
 \subsubsection{Hop-localized evidence perturbation (HLEP)}\label{sec:hlep}
 For each question, a hop $k$ is chosen (by default a non-final hop, whose answer is a bridge entity used by later hops). Let $D$ be the set of paragraphs from \emph{other} questions' pools, and $\bar{q}_k$ the resolved sub-question. The three perturbation operators are
@@ -380,7 +380,7 @@ G3: detection--cost trade-off unmeasured & Calibrated cascade, Eq.~\eqref{eq:ban
 \section{Experimental Results and Discussion}\label{sec:results}
 % ==================================================================
 \subsection{Experimental Setup and Implementation}
-\textbf{Environment.} Experiments run on \TBD{GPU model and count, VRAM}, \TBD{CPU, RAM}, with Python \TBD{version}, PyTorch \TBD{version}, Hugging Face Transformers \TBD{version}, vLLM~\cite{kwon2023vllm} \TBD{version}, and Sentence-Transformers~\cite{reimers2019sbert}. Table~\ref{tab:config} lists the configuration.
+\textbf{Environment.} Experiments run on Kaggle notebooks with two NVIDIA Tesla T4 GPUs (16\,GB each); LLMs run in fp16 with tensor parallelism over both GPUs, since the T4 does not support bfloat16. Further details: \TBD{CPU, RAM}, with Python \TBD{version}, PyTorch \TBD{version}, Hugging Face Transformers \TBD{version}, vLLM~\cite{kwon2023vllm} \TBD{version}, and Sentence-Transformers~\cite{reimers2019sbert}. Table~\ref{tab:config} lists the configuration.
 
 \begin{table}[t]
 \caption{Configuration of implemented components.}\label{tab:config}
@@ -390,14 +390,15 @@ G3: detection--cost trade-off unmeasured & Calibrated cascade, Eq.~\eqref{eq:ban
 \toprule
 Component & Setting \\
 \midrule
-Generator & Search-R1 Qwen2.5-7B checkpoint \TBD{exact HF id} \\
-Decoding & temperature 0; max new tokens \TBD{n}; $T_{\max}=$\TBD{n} \\
+Generator & \texttt{PeterJinGo/SearchR1-nq\_hotpotqa\_train-qwen2.5-7b-em-ppo} \\
+Decoding & greedy (temperature 0); 512 new tokens per turn; at most 4 searches \\
+Precision & fp16; vLLM tensor parallel size 2; max length 8,192 tokens \\
 Retriever & \texttt{intfloat/e5-base-v2}; top-$k=3$; per-question pool \\
-NLI verifier & DeBERTa-v3-large NLI \TBD{exact HF id} \\
+NLI verifier & \texttt{MoritzLaurer/DeBERTa-v3-large-mnli-fever-anli-ling-wanli} \\
 AlignScore & RoBERTa-large, \texttt{nli\_sp} mode \\
 MiniCheck & \TBD{checkpoint, e.g., RoBERTa-L or Flan-T5-L} \\
-LLM judge & \TBD{model id}; 3-way prompt; score = $P(\textsc{Sup})$ \\
-Label judge & \TBD{model id, different family from judge verifier} \\
+LLM judge & \texttt{mistralai/Mistral-7B-Instruct-v0.3}; 3-way prompt; score $=P(\textsc{Sup})$ \\
+Label judge & \texttt{meta-llama/Llama-3.1-8B-Instruct} \\
 Thresholds & max step F1 on validation \\
 Cascade & grid step 0.05; $\delta=$\TBD{value, justify} \\
 Bootstrap & $B=10{,}000$ question-level resamples; seed 13 \\
@@ -447,12 +448,12 @@ Method & Benchmark (metric) & Reported & Reproduced \\
 \midrule
 MiniCheck \TBD{ckpt} & LLM-AggreFact avg.\ (BAcc) & \TBD{from paper} & \TBD{ours} \\
 MiniCheck \TBD{ckpt} & \TBD{subset} (BAcc) & \TBD{} & \TBD{} \\
-Search-R1 Qwen2.5-7B & MuSiQue dev (EM) & \TBD{from paper} & \TBD{ours} \\
+Search-R1 7B (PPO) & MuSiQue (EM) & \TBD{from paper} & \TBD{ours} \\
 \bottomrule
 \end{tabular}}
 \end{table}
 
-\textbf{Deviations.} \TBD{list every deviation: checkpoint versions, subsets used, hardware, decoding settings, retrieval corpus (Search-R1 reports full-Wikipedia retrieval; our main runs use per-question pools)}. \TBD{explain differences larger than about 1 point, e.g., version or prompt differences}.
+\textbf{Deviations.} Three deviations from the Search-R1 setup are deliberate. (i) Decoding is greedy to make traces reproducible, whereas the authors' inference example samples at temperature 0.7. (ii) Retrieval uses each question's own MuSiQue paragraph pool rather than the 2018 Wikipedia corpus with an E5 index used by Search-R1; because the pool always contains the gold paragraphs, our exact match is not directly comparable to the published MuSiQue figure and is expected to be higher. (iii) Models run in fp16 on T4 GPUs rather than in bfloat16. \TBD{add any MiniCheck deviations: checkpoint, LLM-AggreFact version or subsets}. \TBD{explain differences larger than about 1 point, e.g., version or prompt differences}.
 
 \textbf{Baselines in the main study.} Trivial baselines (flag-all, flag-none, random at the base rate) are reported beside every F1, following~\cite{ji2026stepgap}. The fixed-scope conventions of prior benchmarks act as the comparison condition for the scope protocol: $\sigma=\mathrm{acc}$ reproduces the StepGap convention~\cite{ji2026stepgap} and $\sigma=\mathrm{pool}$ the full-context convention~\cite{pham2026grace,chu2026locally,kwon2026safe}.
 

@@ -40,8 +40,10 @@ python -m spacy download en_core_web_sm
 pytest -q                      # 9 tests, CPU only
 ```
 
-Download MuSiQue-Ans (official repository) into `data/musique/` and fill the `TODO`
-fields in `configs/default.yaml` (generator checkpoint, judge models, cascade delta).
+Download MuSiQue-Ans (official repository) into `data/musique/`. Model IDs are set in
+`configs/default.yaml`; the `vllm:` block is set for Kaggle (2x T4, fp16). On a single
+GPU with bfloat16 support (e.g. A100), use `tensor_parallel_size: 1` and `dtype: auto`.
+Llama 3.1 and Mistral are gated on Hugging Face: request access and set `HF_TOKEN`.
 
 ## Running
 

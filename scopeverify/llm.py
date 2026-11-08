@@ -3,9 +3,9 @@ label judging. Use a different model family from the generator."""
 
 
 class VLLMText:
-    def __init__(self, model_id, tp=1, max_tokens=256):
+    def __init__(self, model_id, max_tokens=256, vllm_kwargs=None):
         from vllm import LLM, SamplingParams
-        self.llm = LLM(model=model_id, tensor_parallel_size=tp, seed=13)
+        self.llm = LLM(model=model_id, seed=13, **(vllm_kwargs or {}))
         self.tok = self.llm.get_tokenizer()
         self.sp = SamplingParams(temperature=0.0, max_tokens=max_tokens)
 
