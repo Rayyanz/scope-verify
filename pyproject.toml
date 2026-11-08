@@ -1,0 +1,8 @@
+[project]
+name = "scopeverify"
+version = "0.1.0"
+description = "Evidence scope and verification placement in step-level grounding verification for iterative multi-hop RAG"
+requires-python = ">=3.10"
+
+[tool.setuptools]
+packages = ["scopeverify"]

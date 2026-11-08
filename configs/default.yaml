@@ -1,0 +1,24 @@
+seed: 13
+data:
+  musique_dir: data/musique            # official MuSiQue-Ans jsonl files
+  n_test: 1000                         # preliminary study: e.g. 300
+  n_val: 300
+  n_external: 20000                    # paragraphs from other questions (distractors, filler)
+conditions: [clean, removed, distractor, counterfactual]
+generator:
+  model_id: TODO-search-r1-qwen2.5-7b-checkpoint   # exact HF id from the Search-R1 repo
+  top_k: 3
+  max_turns: 6
+  max_new_tokens: 512
+retriever: intfloat/e5-base-v2
+label_judge: TODO-instruct-model-different-family  # never also used as a verifier
+verifiers:
+  nli: MoritzLaurer/DeBERTa-v3-large-mnli-fever-anli-ling-wanli
+  alignscore_ckpt: ckpts/AlignScore-large.ckpt
+  minicheck: roberta-large
+  llm_judge: TODO-judge-verifier-model
+  llm_judge_subsample: 0.2
+scopes: [loc, acc, traj, pool, pad]
+analysis:
+  n_boot: 10000
+  delta: TODO      # cascade tolerance, fix after the pilot and before test evaluation

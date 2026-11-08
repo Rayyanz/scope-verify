@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.venv/
+ckpts/
+data/*
+!data/.gitkeep
+outputs/*
+!outputs/.gitkeep
+paper/*.aux
+paper/*.log
+paper/*.bbl
+paper/*.blg
+paper/*.fdb_latexmk
+paper/*.fls
+paper/*.out

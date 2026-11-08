@@ -1,0 +1,18 @@
+# core (CPU; tests and analysis)
+numpy
+pandas
+scikit-learn
+scipy
+matplotlib
+pyyaml
+pytest
+datasets
+# models (GPU); pin exact versions after installing (pip freeze > requirements.lock)
+torch
+transformers
+sentence-transformers
+vllm
+spacy
+# verifiers: install from their official repositories
+# pip install "minicheck @ git+https://github.com/Liyan06/MiniCheck.git@main"
+# AlignScore: clone https://github.com/yuh-zha/AlignScore, `pip install .`, download AlignScore-large.ckpt
