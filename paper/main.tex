@@ -36,16 +36,16 @@
 \title{Evidence Scope and Verification Placement in Step-Level Grounding Verification for Iterative Multi-Hop Retrieval-Augmented Generation}
 
 \author{\IEEEauthorblockN{Syed Muhammad Rayyan}
-\IEEEauthorblockA{\textit{\TBD{Department}} \\
-\textit{\TBD{University}}\\
-\TBD{City, Country} \\
-\TBD{institutional email} (corresponding author)}
+\IEEEauthorblockA{\textit{Department of Computer Science} \\
+\textit{National University of Computer and Emerging Sciences (FAST-NUCES)}\\
+Islamabad, Pakistan \\
+i267827@isb.nu.edu.pk (corresponding author)}
 }
 
 \maketitle
 
 \begin{abstract}
-Search-interleaved large language models answer multi-hop questions by alternating reasoning steps with retrieval, and step-level grounding verifiers are increasingly used to detect intermediate claims that the retrieved evidence does not support. Existing step-level benchmarks and in-loop verifiers each fix, by convention, the evidence against which a step is judged, yet these conventions differ across studies; detection is evaluated only on naturally occurring errors in small human-labelled samples; and verification cost is not reported. We present a controlled evaluation framework with three components: hop-localized evidence perturbation (HLEP), which removes, replaces, or counterfactually edits the gold evidence of a known hop and derives typed step labels by construction; a scope-controlled verification protocol that decouples the gold-label scope from the verifier's input scope and includes a length-matched control; and a budget-constrained verification cascade calibrated on validation data. Using Search-R1-style traces from Qwen2.5-7B on MuSiQue, we evaluate NLI, AlignScore, MiniCheck, and an LLM judge across four evidence scopes, and we reproduce MiniCheck on LLM-AggreFact as the base method. Detection is measured with AUROC, recall at 95\% retention, balanced accuracy, and tokens and model calls per question, with question-level bootstrap confidence intervals. \TBD{one-sentence main finding on evidence scope, with numbers and CI}. \TBD{one-sentence finding on perturbation types}. \TBD{one-sentence finding on cascade cost and AUROC}. Code is available at \url{https://github.com/TBD-username/scope-verify}.
+Search-interleaved large language models answer multi-hop questions by alternating reasoning steps with retrieval, and step-level grounding verifiers are increasingly used to detect intermediate claims that the retrieved evidence does not support. Existing step-level benchmarks and in-loop verifiers each fix, by convention, the evidence against which a step is judged, yet these conventions differ across studies; detection is evaluated only on naturally occurring errors in small human-labelled samples; and verification cost is not reported. We propose a controlled evaluation framework with three components: hop-localized evidence perturbation (HLEP), which removes, replaces, or counterfactually edits the gold evidence of a known hop and derives typed step labels by construction; a scope-controlled verification protocol that decouples the gold-label scope from the verifier's input scope and adds a length-matched control; and a budget-constrained verification cascade calibrated on validation data. We implement the complete pipeline for Search-R1 traces from a Qwen2.5-7B model on MuSiQue, with NLI, AlignScore, MiniCheck, and LLM-judge verifiers, evaluation by AUROC, recall at 95\% retention, and cost per question, and question-level bootstrap testing; all core components are unit-tested. As the base method, we reproduce MiniCheck-RoBERTa-L on the 29,320-pair LLM-AggreFact test set, obtaining an average balanced accuracy of 73.5\% across 11 datasets (range 57.4--88.8\%). The perturbation and evidence-scope experiments on MuSiQue are in progress. Code is available at \url{https://github.com/Rayyanz/scope-verify}.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -66,7 +66,7 @@ This paper addresses three objectives: (O1) measure how step-level detection met
 \item \textbf{Hop-localized evidence perturbation (HLEP)}, a procedure that removes, replaces with an external distractor, or counterfactually edits the gold paragraph of a chosen hop, together with a formal label-construction rule that assigns typed step labels (Missing Bridge, Irrelevant Evidence, Contradicted Claim) by construction (Algorithm~\ref{alg:hlep}).
 \item \textbf{A scope-controlled verification protocol} that decouples the gold-label scope from the verifier input scope, adds a length-matched control to separate scope from input length, and defines the later-supported rate as a direct measure of masking by out-of-scope evidence (Algorithm~\ref{alg:scope}).
 \item \textbf{A budget-constrained verification cascade} whose escalation band is calibrated on validation data under an explicit AUROC tolerance, evaluated on a detection--cost frontier (Algorithm~\ref{alg:cascade}).
-\item \textbf{Preliminary empirical evidence} on MuSiQue with four verifiers, and a reproduction of MiniCheck~\cite{tang2024minicheck} as the base method.
+\item \textbf{A complete, unit-tested implementation} of the framework for MuSiQue with four verifiers, and a reproduction of MiniCheck~\cite{tang2024minicheck} as the base method on the full LLM-AggreFact test set; the main experiments are in progress.
 \end{itemize}
 The study evaluates \emph{local} step support only; question alignment and answer closure, which can fail even when every step is supported~\cite{chu2026locally}, are out of scope.
 
@@ -120,22 +120,20 @@ Table~\ref{tab:related} summarizes the positioning. Step-level verification is e
 \textbf{MuSiQue-Ans}~\cite{trivedi2022musique} is the primary dataset. Each question has a paragraph pool of 20 Wikipedia paragraphs (gold and distractors), a gold decomposition into 2--4 single-hop sub-questions, each sub-question's answer, and the index of its supporting paragraph. These per-hop annotations are what make hop-localized perturbation and label construction possible, and the dataset was built to resist single-hop shortcuts~\cite{min2019compositional}. \textbf{2WikiMultihopQA}~\cite{ho2020twowiki} is a replication dataset with 10-paragraph contexts, evidence triples per hop, and typed questions (comparison, inference, compositional, bridge comparison). HotpotQA~\cite{yang2018hotpotqa} is used only where needed for compatibility with prior step-level label sets. Both primary datasets are publicly available from their official repositories. Table~\ref{tab:data} gives statistics; Table~\ref{tab:sample} shows the data format.
 
 \begin{table}[t]
-\caption{Dataset statistics. Official split sizes as reported in the dataset papers (verify before submission); sample sizes are those used here.}\label{tab:data}
+\caption{Dataset statistics. $^{\dagger}$Train and dev counts verified on the downloaded MuSiQue v1.0 files; other split sizes as reported in the dataset papers. Sample sizes are those used here.}\label{tab:data}
 \centering\small
 \resizebox{\columnwidth}{!}{%
 \begin{tabular}{@{}lcc@{}}
 \toprule
  & MuSiQue-Ans & 2WikiMultihopQA \\
 \midrule
-Train / Dev / Test & 19,938 / 2,417 / 2,459 & 167,454 / 12,576 / 12,576 \\
+Train / Dev / Test & 19,938 / 2,417 / 2,459$^{\dagger}$ & 167,454 / 12,576 / 12,576 \\
 Paragraphs per question & 20 & 10 \\
 Hops per question & 2--4 & 2--4 \\
 Per-hop gold evidence & paragraph index & evidence triple \\
 \midrule
-Validation sample (from train) & 300 & 150 \\
-Test sample (from dev) & 1,000 (prelim.\ \TBD{n}) & 500 \\
-Hop distribution in test sample & \TBD{2/3/4-hop counts} & \TBD{counts} \\
-Steps after filtering & \TBD{n} & \TBD{n} \\
+Validation sample (from train) & 100 (pilot) & 150 (planned) \\
+Test sample (from dev) & 300 (preliminary) & 500 (planned) \\
 \bottomrule
 \end{tabular}}
 \end{table}
@@ -380,7 +378,7 @@ G3: detection--cost trade-off unmeasured & Calibrated cascade, Eq.~\eqref{eq:ban
 \section{Experimental Results and Discussion}\label{sec:results}
 % ==================================================================
 \subsection{Experimental Setup and Implementation}
-\textbf{Environment.} Experiments run on Kaggle notebooks with two NVIDIA Tesla T4 GPUs (16\,GB each); LLMs run in fp16 with tensor parallelism over both GPUs, since the T4 does not support bfloat16. Further details: \TBD{CPU, RAM}, with Python \TBD{version}, PyTorch \TBD{version}, Hugging Face Transformers \TBD{version}, vLLM~\cite{kwon2023vllm} \TBD{version}, and Sentence-Transformers~\cite{reimers2019sbert}. Table~\ref{tab:config} lists the configuration.
+\textbf{Environment.} Experiments run on Kaggle notebooks with two NVIDIA Tesla T4 GPUs (16\,GB each); LLMs run in fp16 with tensor parallelism over both GPUs, since the T4 does not support bfloat16. The software stack is Python 3.13, PyTorch 2.14.0 (CUDA 13.0), Hugging Face Transformers 5.20.2, vLLM~\cite{kwon2023vllm} 0.33.0, and Sentence-Transformers~\cite{reimers2019sbert}. Table~\ref{tab:config} lists the configuration.
 
 \begin{table}[t]
 \caption{Configuration of implemented components.}\label{tab:config}
@@ -396,19 +394,42 @@ Precision & fp16; vLLM tensor parallel size 2; max length 8,192 tokens \\
 Retriever & \texttt{intfloat/e5-base-v2}; top-$k=3$; per-question pool \\
 NLI verifier & \texttt{MoritzLaurer/DeBERTa-v3-large-mnli-fever-anli-ling-wanli} \\
 AlignScore & RoBERTa-large, \texttt{nli\_sp} mode \\
-MiniCheck & \TBD{checkpoint, e.g., RoBERTa-L or Flan-T5-L} \\
+MiniCheck & \texttt{roberta-large} checkpoint (MiniCheck-RoBERTa-L) \\
 LLM judge & \texttt{mistralai/Mistral-7B-Instruct-v0.3}; 3-way prompt; score $=P(\textsc{Sup})$ \\
 Label judge & \texttt{meta-llama/Llama-3.1-8B-Instruct} \\
 Thresholds & max step F1 on validation \\
-Cascade & grid step 0.05; $\delta=$\TBD{value, justify} \\
+Cascade & grid step 0.05; $\delta$ fixed after the pilot, before test evaluation \\
 Bootstrap & $B=10{,}000$ question-level resamples; seed 13 \\
 \bottomrule
 \end{tabular}}
 \end{table}
 
-\textbf{Implemented components.} \TBD{state exactly which parts were run for this preliminary study}. The preliminary study implements HLEP (removed and counterfactual conditions), the scope protocol with all five input scopes and the primary gold definition ($g=\mathrm{acc}$), and the NLI, AlignScore, and MiniCheck verifiers on \TBD{n} MuSiQue development questions, with the LLM judge on a stratified \TBD{p}\% subsample. The distractor condition, 2WikiMultihopQA replication, P4/P5 placements, and $g=\mathrm{pool}$ are planned for the full study.
+\textbf{Implementation status.} Table~\ref{tab:status} lists every component of the workflow in Fig.~\ref{fig:workflow}, the module that implements it, and its status. All components are implemented in Python as a single package. The core logic is covered by unit tests: HLEP operators (removal, external distractor, counterfactual substitution with same-type substitutes that never coincide with another answer of the same question), the label-construction rules of Table~\ref{tab:rules}, the evidence scopes of Eq.~\eqref{eq:scopes} including the length-matched control, the metrics of Table~\ref{tab:metrics}, the cluster bootstrap with Holm correction, and cascade band calibration; all nine tests pass. The tests exposed and fixed one design flaw: without type matching and exclusion, a counterfactual substitute for a person could be a place that is the answer to another hop of the same question. The analysis script was additionally run end to end on synthetic score tables to verify the statistics pipeline; no results from synthetic data are reported.
 
-\textbf{Reproducibility.} Generation is greedy; all random choices (sampling, hop choice, substitutes, bootstrap) use fixed seeds; model identifiers and library versions are pinned; and intermediate outputs (pools, traces, labels, score tables) are released with the code.
+\begin{table}[t]
+\caption{Implementation status of the workflow components.}\label{tab:status}
+\centering\footnotesize
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{@{}lll@{}}
+\toprule
+Component & Module & Status \\
+\midrule
+Data loading, stratified sampling & \texttt{data.py} & implemented; data downloaded \\
+Per-question E5 retriever & \texttt{retriever.py} & implemented \\
+HLEP perturbation (Eqs.~\ref{eq:perturb}) & \texttt{perturb.py} & implemented, tested \\
+Search-R1 trace generation & \texttt{generate.py} & implemented; run pending \\
+Step segmentation, decontextualization & \texttt{claims.py} & implemented \\
+Label construction (Table~\ref{tab:rules}) & \texttt{labels.py} & implemented, tested \\
+Evidence scopes (Eq.~\ref{eq:scopes}) & \texttt{scopes.py} & implemented, tested \\
+Verifiers + cost meter (Eq.~\ref{eq:score}) & \texttt{verifiers.py} & implemented \\
+Calibrated cascade (Alg.~\ref{alg:cascade}) & \texttt{cascade.py} & implemented, tested \\
+Metrics, bootstrap, Holm & \texttt{metrics.py}, \texttt{stats.py} & implemented, tested \\
+Base reproduction (MiniCheck) & \texttt{reproduce\_minicheck.py} & \textbf{executed} (Table~\ref{tab:repro}) \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\textbf{Reproducibility.} Generation is greedy; all random choices (sampling, hop choice, substitutes, bootstrap) use fixed seeds; model identifiers are fixed in a single configuration file; and intermediate outputs (pools, traces, labels, score tables) are written as JSONL or CSV keyed by question and step identifiers, so every metric can be recomputed.
 
 \subsection{Evaluation Metrics}
 The positive class is \emph{ungrounded}. Table~\ref{tab:metrics} defines the metrics. AUROC is threshold-free and is the primary ranking metric, as in prior hallucination-detection work~\cite{farquhar2024semantic,manakul2023selfcheckgpt}; recall at 95\% retention follows~\cite{chu2026locally}; step F1 and balanced accuracy allow comparison with step-level benchmarks~\cite{ji2026stepgap,pham2026grace} and LLM-AggreFact~\cite{tang2024minicheck}. Balanced accuracy is used across conditions because the base rate of ungrounded steps differs by condition. Question-level F1 is reported only next to a flag-all baseline, because it is inflated by checkers that flag every step~\cite{ji2026stepgap}.
@@ -436,109 +457,53 @@ Label agreement & Cohen's $\kappa$~\cite{cohen1960kappa}; Krippendorff's $\alpha
 \textbf{Statistical analysis.} Steps are nested in questions, so confidence intervals use a cluster bootstrap that resamples questions with replacement~\cite{efron1993bootstrap,koehn2004significance,dror2018hitchhiker}. For a statistic $\Delta$ (e.g., an AUROC difference between two scopes), the $b$-th replicate is computed on the steps of a resampled question set $\mathcal{Q}^{(b)}$, and the 95\% interval is $[\Delta^{(2.5)},\Delta^{(97.5)}]$ over $B=10{,}000$ replicates. The six primary tests are corrected with the Holm procedure~\cite{holm1979simple}. H3 is tested for non-inferiority: the lower bound of the interval for $\mathrm{AUROC}(\mathrm{P3})-\mathrm{AUROC}(\mathrm{P1})$ must exceed $-\delta$.
 
 \subsection{Baseline Implementation and Reproduction}
-\textbf{Base paper.} The principal reproduced method is MiniCheck~\cite{tang2024minicheck}, a grounding verifier that is also one of the evaluated verifiers and the strongest low-cost baseline used in step-level work~\cite{ji2026stepgap}. We reproduce its balanced accuracy on LLM-AggreFact using the released checkpoints and evaluation code, without modification, and compare with the published values (Table~\ref{tab:repro}). We also reproduce the exact-match accuracy of the Search-R1 generator on MuSiQue to confirm that our trace generator behaves as reported~\cite{jin2025searchr1}. \TBD{If StepGap code and labels are released: reproduce its MiniCheck and NLI step F1 on its 181 labelled steps and add a row}.
+\textbf{Base paper.} The principal reproduced method is MiniCheck~\cite{tang2024minicheck}, a grounding verifier that is also one of the evaluated verifiers and the strongest low-cost baseline used in step-level work~\cite{ji2026stepgap}. We reproduce MiniCheck-RoBERTa-L on all 11 datasets of the LLM-AggreFact test set (29,320 claim--document pairs) with the released checkpoint and the authors' evaluation protocol: scores are converted to labels at a threshold of 0.5, balanced accuracy is computed per dataset, and the unweighted mean is reported. Table~\ref{tab:repro} shows the results, together with the published leaderboard values of the larger MiniCheck-Flan-T5-L~\cite{llmaggrefact2026leaderboard} for context.
 
 \begin{table}[t]
-\caption{Reproduction of base results. Reported values are copied from the original papers; reproduced values are from our runs.}\label{tab:repro}
+\caption{Base-method reproduction on the LLM-AggreFact test set (BAcc, \%, threshold 0.5). The Flan-T5-L column is a different, larger MiniCheck model, shown for context only.}\label{tab:repro}
 \centering\footnotesize
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{@{}llcc@{}}
+\begin{tabular}{@{}lrcc@{}}
 \toprule
-Method & Benchmark (metric) & Reported & Reproduced \\
+ & & \textbf{Reproduced} & Leaderboard~\cite{llmaggrefact2026leaderboard} \\
+Dataset & $n$ & RoBERTa-L & Flan-T5-L \\
 \midrule
-MiniCheck \TBD{ckpt} & LLM-AggreFact avg.\ (BAcc) & \TBD{from paper} & \TBD{ours} \\
-MiniCheck \TBD{ckpt} & \TBD{subset} (BAcc) & \TBD{} & \TBD{} \\
-Search-R1 7B (PPO) & MuSiQue (EM) & \TBD{from paper} & \TBD{ours} \\
+AggreFact-CNN & 558 & 63.7 & 69.9 \\
+AggreFact-XSum & 558 & 70.8 & 74.3 \\
+TofuEval-MediaS & 726 & 71.9 & 73.6 \\
+TofuEval-MeetB & 772 & 75.9 & 77.3 \\
+WiCE & 358 & 67.6 & 72.2 \\
+REVEAL & 1,710 & 88.8 & 86.2 \\
+ClaimVerify & 1,088 & 77.4 & 74.6 \\
+FactCheck-GPT & 1,566 & 73.3 & 74.7 \\
+ExpertQA & 3,702 & 57.4 & 59.0 \\
+LFQA & 1,911 & 84.4 & 85.2 \\
+RAGTruth & 16,371 & 77.2 & 78.0 \\
+\midrule
+Average & 29,320 & 73.5 & 75.0 \\
 \bottomrule
-\end{tabular}}
+\end{tabular}
 \end{table}
 
-\textbf{Deviations.} Three deviations from the Search-R1 setup are deliberate. (i) Decoding is greedy to make traces reproducible, whereas the authors' inference example samples at temperature 0.7. (ii) Retrieval uses each question's own MuSiQue paragraph pool rather than the 2018 Wikipedia corpus with an E5 index used by Search-R1; because the pool always contains the gold paragraphs, our exact match is not directly comparable to the published MuSiQue figure and is expected to be higher. (iii) Models run in fp16 on T4 GPUs rather than in bfloat16. \TBD{add any MiniCheck deviations: checkpoint, LLM-AggreFact version or subsets}. \TBD{explain differences larger than about 1 point, e.g., version or prompt differences}.
+\textbf{Analysis.} The reproduced RoBERTa-L model reaches an average balanced accuracy of 73.5\%, 1.5 points below the larger Flan-T5-L model on the leaderboard. Its per-dataset profile follows the same pattern as the leaderboard models: ExpertQA is the hardest dataset for every listed model (59--61\% for the top systems) and is also hardest here (57.4\%), while REVEAL is among the easiest for all models and is the easiest here (88.8\%), slightly above Flan-T5-L. This matters for the present study because REVEAL is itself a step-level attribution benchmark for chain-of-thought steps~\cite{jacovi2024reveal}: strong performance on it supports using MiniCheck as a step-level verifier, while the lower ExpertQA and CNN scores indicate that long, expert-written evidence remains difficult. A direct comparison with the published RoBERTa-L values from~\cite{tang2024minicheck} and a reproduction of Flan-T5-L are planned.
+
+\textbf{Deviations.} MiniCheck was run without modification on two T4 GPUs with the software stack above; scoring the full test set took about 85 minutes, of which RAGTruth (16,371 pairs) accounted for 48 minutes. For the generator, three deviations from the Search-R1 setup are deliberate. (i) Decoding is greedy to make traces reproducible, whereas the authors' inference example samples at temperature 0.7. (ii) Retrieval uses each question's own MuSiQue paragraph pool rather than the 2018 Wikipedia corpus with an E5 index used by Search-R1; because the pool always contains the gold paragraphs, exact match on MuSiQue will not be directly comparable to the published figure. (iii) Models run in fp16 on T4 GPUs rather than in bfloat16.
 
 \textbf{Baselines in the main study.} Trivial baselines (flag-all, flag-none, random at the base rate) are reported beside every F1, following~\cite{ji2026stepgap}. The fixed-scope conventions of prior benchmarks act as the comparison condition for the scope protocol: $\sigma=\mathrm{acc}$ reproduces the StepGap convention~\cite{ji2026stepgap} and $\sigma=\mathrm{pool}$ the full-context convention~\cite{pham2026grace,chu2026locally,kwon2026safe}.
 
-\subsection{Experimental Results and Comparative Analysis}
-\textbf{Label validity.} \TBD{report labels-by-construction precision against adjudicated human labels on the V3 sample, Krippendorff's $\alpha$, and the judge's $\kappa$ against humans}. \TBD{report the confusion matrix of intended vs.\ annotated type}.
+\subsection{Main Experiments: Status and Protocol}
+The MuSiQue data are downloaded and verified (19,938 training and 2,417 development questions), all models are accessible, and the trace generator, judges, and verifiers load on the target hardware. The main experiments run in two stages. A pilot on 100 validation questions under the clean, removed, and counterfactual conditions fixes the prompts, the decision thresholds, and the cascade tolerance $\delta$; these are frozen before any test question is scored. The preliminary test study then uses 300 development questions stratified by hop count.
 
-\begin{table}[t]
-\caption{RQ1 (preliminary): step-level AUROC by verifier and input scope, gold scope $g=\mathrm{acc}$, clean and perturbed conditions pooled. 95\% cluster-bootstrap CIs in brackets.}\label{tab:rq1}
-\centering\footnotesize
-\setlength{\tabcolsep}{3pt}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{@{}lccccc@{}}
-\toprule
-Verifier & $\Eloc$ & $\Eacc$ & $\Etraj$ & $\Epool$ & $\Epad$ \\
-\midrule
-NLI (DeBERTa) & \TBD{} & \TBD{} & \TBD{} & \TBD{} & \TBD{} \\
-AlignScore & \TBD{} & \TBD{} & \TBD{} & \TBD{} & \TBD{} \\
-MiniCheck & \TBD{} & \TBD{} & \TBD{} & \TBD{} & \TBD{} \\
-LLM judge (subset) & \TBD{} & \TBD{} & \TBD{} & \TBD{} & \TBD{} \\
-\midrule
-Random & 0.50 & 0.50 & 0.50 & 0.50 & 0.50 \\
-\bottomrule
-\end{tabular}}
-\end{table}
+The experiments produce, for each research question, the following evidence. For RQ1, a table of AUROC and R@95 for every verifier and input scope under $g=\mathrm{acc}$, the paired differences $\mathrm{R@95}(\Eacc)-\mathrm{R@95}(\Etraj)$ and $\mathrm{R@95}(\Eacc)-\mathrm{R@95}(\Epool)$ with 95\% cluster-bootstrap intervals (H1a), the later-supported rate of Eq.~\eqref{eq:lsr}, the pairwise rank-reversal test (H1b), and the comparison of $\Epad$ with $\Eloc$ and $\Eacc$ that separates input length from content. For RQ2, R@95 per perturbation-induced type with intervals (H2a) and the scope-by-type interaction (H2b). For RQ3, the calibrated band, escalation rate, the non-inferiority interval for $\mathrm{AUROC}(\mathrm{P3})-\mathrm{AUROC}(\mathrm{P1})$ (H3), and the detection--cost frontier. Label validity is assessed on a double-annotated sample of perturbed steps (labels-by-construction precision, Krippendorff's $\alpha$, and the intended-versus-annotated type confusion matrix). All six primary tests are Holm-corrected, and null results will be reported.
 
-\textbf{RQ1: evidence scope.} \TBD{state whether R@95 drops from $\Eacc$ to $\Etraj$/$\Epool$ for each verifier, with the CI of the difference (H1a); report LSR with CI}. \TBD{state whether any verifier pair reverses order (H1b)}. \TBD{compare $\Epad$ with $\Eloc$ and $\Eacc$ to separate length from content}. \TBD{interpret: explain the technical reason, e.g., later passages entailing bridge claims, or encoder truncation; do not only restate numbers}.
+\subsection{Planned Ablations and Additional Validation}
+Four ablations isolate design choices: (A1) including preceding claims as premises, the convention of~\cite{chu2026locally,kim2026prostep}; (A2) raw versus decontextualized claims~\cite{choi2021decontext}; (A3) paragraph-level max aggregation versus a single truncated window for encoder verifiers; and (A4) sensitivity of the cascade to the band and to $\delta$. To assess leakage of the datasets into pretraining~\cite{sainz2023contamination}, results will be stratified by whether the generator answers the question correctly closed-book. In addition, MuSiQue was composed from single-hop questions of existing datasets, including Natural Questions, on which the Search-R1 generator was trained; the dataset release lists the single-hop question identifiers used in its development and test sets, so results will also be reported with and without questions whose single-hop components overlap these sources. Computational cost (GPU-hours for generation and for each verifier) will be reported alongside the results.
 
-\begin{table}[t]
-\caption{RQ2 (preliminary): R@95 by perturbation-induced type, $\sigma=\Eacc$. $n$ = number of labelled steps of each type.}\label{tab:rq2}
-\centering\footnotesize
-\begin{tabular}{@{}lccc@{}}
-\toprule
-Verifier & Missing Bridge & Irrelevant Evid. & Contradicted \\
-\midrule
-NLI (DeBERTa) & \TBD{} & planned & \TBD{} \\
-AlignScore & \TBD{} & planned & \TBD{} \\
-MiniCheck & \TBD{} & planned & \TBD{} \\
-\midrule
-$n$ & \TBD{} & -- & \TBD{} \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\textbf{RQ2: perturbation type.} \TBD{report per-type differences and CIs (H2a) and whether masking differs by type (H2b)}. \TBD{relate findings to verifier design, e.g., NLI models may detect explicit contradictions more readily than missing evidence; confirm or reject with your numbers}.
-
-\begin{figure}[t]
-\centering
-\IfFileExists{figs/pareto.pdf}{\includegraphics[width=\columnwidth]{figs/pareto.pdf}}{\fbox{\parbox[c][3.6cm][c]{0.92\columnwidth}{\centering\TBD{figs/pareto.pdf, generated by \texttt{scripts/05\_analyze.py}}}}}
-\caption{RQ3: detection--cost frontier. AUROC against verification tokens per question for placements P1--P3; error bars are 95\% CIs.}\label{fig:pareto}
-\end{figure}
-
-\textbf{RQ3: placement and cost.} \TBD{report the calibrated band, the escalation rate, the AUROC difference P3$-$P1 with CI, and the token and call savings (H3); describe which configurations lie on the Pareto frontier in Fig.~\ref{fig:pareto}}.
-
-\textbf{Qualitative examples.} \TBD{show one trace in which a step is ungrounded under $\Eacc$ but masked under $\Etraj$, and one counterfactual step where the model kept the original entity; quote the step and the relevant evidence}.
-
-\subsection{Ablation Studies and Additional Validation}
-Four ablations isolate design choices: (A1) including preceding claims as premises, the convention of~\cite{chu2026locally,kim2026prostep}; (A2) raw versus decontextualized claims~\cite{choi2021decontext}; (A3) paragraph-level max aggregation versus a single truncated window for encoder verifiers; and (A4) sensitivity of the cascade to the band and to $\delta$. To assess leakage of the datasets into pretraining~\cite{sainz2023contamination}, results are also stratified by whether the generator answers the question correctly closed-book.
-
-\begin{table}[t]
-\caption{Ablations (MiniCheck, $\sigma=\Eacc$, AUROC).}\label{tab:ablation}
-\centering\footnotesize
-\begin{tabular}{@{}lc@{}}
-\toprule
-Configuration & AUROC [95\% CI] \\
-\midrule
-Full protocol & \TBD{} \\
-A1: + preceding claims as premises & \TBD{} \\
-A2: raw (not decontextualized) claims & \TBD{} \\
-A3: single truncated window & \TBD{} \\
-Closed-book answerable subset & \TBD{} \\
-Closed-book unanswerable subset & \TBD{} \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\TBD{interpret each ablation in one or two sentences: which design choice matters, and under what conditions}. \TBD{report compute: total GPU-hours for generation and for each verifier}.
-
-% ==================================================================
 \section{Conclusion}\label{sec:conclusion}
-% ==================================================================
-This work set out to determine whether the evaluation conventions of step-level grounding verification for iterative multi-hop RAG affect what we conclude about verifiers. We developed a framework of hop-localized evidence perturbation with labels by construction, a scope-controlled verification protocol with a length control and a masking measure, and a calibrated verification cascade, and we reproduced MiniCheck as the base method. \TBD{summarize the main supported findings for RQ1--RQ3 in three sentences, including which hypotheses were supported and which were not}. \TBD{state which objectives were not fully realized in this preliminary study}.
+This work set out to determine whether the evaluation conventions of step-level grounding verification for iterative multi-hop RAG affect what we conclude about verifiers. Rather than proposing another verifier, it contributes a measurement framework: hop-localized evidence perturbation with typed labels by construction, a scope-controlled verification protocol with a length control and a masking measure (the later-supported rate), and a cascade calibrated under an explicit detection tolerance. The framework is fully implemented and unit-tested, and the base method was reproduced: MiniCheck-RoBERTa-L reaches 73.5\% average balanced accuracy on the 11 LLM-AggreFact datasets, with a per-dataset profile consistent with the published leaderboard and strong accuracy on the step-level REVEAL benchmark.
 
-The study has limitations. It assesses local step support only, not question alignment or answer closure~\cite{chu2026locally}. It uses English Wikipedia data, one generator family, and closed per-question pools, so transfer to open-corpus retrieval is untested. Perturbations are controlled but artificial, and the mapping to error types is approximate. Pretraining exposure is controlled by the counterfactual condition and closed-book stratification, not eliminated. Clean-condition labels rely on an LLM judge validated on a small human sample.
+The objectives O1--O3 are not yet accomplished: the evidence-scope, perturbation, and cascade experiments on MuSiQue are in progress, so no claim is made here about the hypotheses H1--H3. The study also has inherent limitations. It assesses local step support only, not question alignment or answer closure~\cite{chu2026locally}. It uses English Wikipedia data, one generator family, and closed per-question pools, so transfer to open-corpus retrieval is untested. Perturbations are controlled but artificial, and the mapping to error types is approximate. Pretraining exposure is controlled by the counterfactual condition and closed-book stratification, not eliminated. Clean-condition labels rely on an LLM judge validated on a small human sample.
 
-Future work will complete the full study (distractor condition, 2WikiMultihopQA replication, the $\Epool$ gold definition, and placements P4--P5), add a second generator with a different step format to test generality, and extend the protocol to open-corpus retrieval. A further direction is to use the later-supported rate as a training signal for verifiers that must judge evidence available at generation time rather than all evidence retrieved.
+Future work will first complete the pilot and the preliminary MuSiQue study, then add the distractor condition, the 2WikiMultihopQA replication, the $\Epool$ gold definition, and placements P4--P5. Further directions are a second generator with a different step format, extension to open-corpus retrieval, and using the later-supported rate as a training signal for verifiers that must judge the evidence available at generation time rather than all evidence retrieved.
 
 \bibliographystyle{IEEEtran}
 \bibliography{references}

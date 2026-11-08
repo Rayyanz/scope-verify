@@ -1,10 +1,10 @@
 seed: 13
 data:
   musique_dir: data/musique            # official MuSiQue-Ans jsonl files
-  n_test: 1000                         # preliminary study: e.g. 300
-  n_val: 300
+  n_test: 300                          # preliminary study: e.g. 300
+  n_val: 100
   n_external: 20000                    # paragraphs from other questions (distractors, filler)
-conditions: [clean, removed, distractor, counterfactual]
+conditions: [clean, removed, counterfactual]   # preliminary; add distractor for the full study
 generator:
   model_id: PeterJinGo/SearchR1-nq_hotpotqa_train-qwen2.5-7b-em-ppo   # as in Search-R1 infer.py
   top_k: 3              # Search-R1 retriever.topk
