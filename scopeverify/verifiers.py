@@ -118,6 +118,7 @@ class LLMJudgeVerifier:
         if meter:
             meter.start()
         outs = self.llm.generate(prompts, self.sp)
+        self.last_prompt_tokens = [len(o.prompt_token_ids) for o in outs]
         if meter:
             meter.stop(calls=len(prompts), tokens_in=sum(len(o.prompt_token_ids) for o in outs),
                        tokens_out=len(outs))

@@ -29,7 +29,9 @@ def clean_claim(text):
             continue
         s = LEAD_RE.sub("", s).strip()
         if len(s.split()) >= 3:
-            keep.append(s[0].upper() + s[1:])
+            s = s[0].upper() + s[1:]
+            if s not in keep:                  # model sometimes repeats a sentence
+                keep.append(s)
     return " ".join(keep)
 
 FILTER_PROMPT = (
