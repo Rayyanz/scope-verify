@@ -61,8 +61,10 @@ python scripts/02_generate_traces.py --split test --closed_book
 python scripts/03_build_claims_and_labels.py --split val
 python scripts/03_build_claims_and_labels.py --split test
 # 4. verifier scores with cost metering
-python scripts/04_score_verifiers.py --split val  --verifiers nli minicheck alignscore llm_judge --judge_subsample 1.0
-python scripts/04_score_verifiers.py --split test --verifiers nli minicheck alignscore llm_judge
+python scripts/04_score_verifiers.py --split val --verifiers nli minicheck alignscore
+python scripts/04_score_verifiers.py --split val --verifiers llm_judge --judge_subsample 1.0   # separate run: one vLLM model per process
+python scripts/04_score_verifiers.py --split test --verifiers nli minicheck alignscore
+python scripts/04_score_verifiers.py --split test --verifiers llm_judge
 # Search-R1 sanity reproduction (EM on clean traces)
 python scripts/eval_em.py outputs/test_clean_traces.jsonl
 # 5. analysis (delta fixed after the pilot, before looking at test results)

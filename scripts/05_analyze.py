@@ -1,6 +1,7 @@
 """Compute RQ1-RQ3 results with question-level bootstrap CIs and the Pareto plot.
 Usage: python scripts/05_analyze.py --split test --val_split val --n_boot 10000"""
 import argparse
+import glob
 import itertools
 import json
 
@@ -23,7 +24,14 @@ ap.add_argument("--delta", type=float, required=True, help="cascade tolerance fi
 ap.add_argument("--cheap", default="minicheck")
 args = ap.parse_args()
 
-df = pd.read_csv(f"outputs/{args.split}_scores.csv").dropna(subset=["y_acc"])
+def load_scores(split):
+    files = sorted(glob.glob(f"outputs/{split}_scores_*.csv"))
+    if not files:
+        raise FileNotFoundError(f"no outputs/{split}_scores_*.csv files")
+    return pd.concat([pd.read_csv(f) for f in files], ignore_index=True)
+
+
+df = load_scores(args.split).dropna(subset=["y_acc"])
 df["uid"] = df["condition"] + "|" + df["qid"]           # cluster = question x condition
 df["cluster"] = df["qid"]                                # resample questions (all conditions)
 res = {}
@@ -106,7 +114,7 @@ def paired(frame, cheap):
         b[["score", "seconds", "tokens_in"]], rsuffix="_j", how="inner").reset_index()
 
 try:
-    val = pd.read_csv(f"outputs/{args.val_split}_scores.csv").dropna(subset=["y_acc"])
+    val = load_scores(args.val_split).dropna(subset=["y_acc"])
     val["uid"] = val["condition"] + "|" + val["qid"]; val["cluster"] = val["qid"]
     pv, pt = paired(val, args.cheap), paired(df, args.cheap)
     kc, kj = pv["seconds"].mean(), pv["seconds_j"].mean()

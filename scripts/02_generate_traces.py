@@ -1,5 +1,8 @@
 """Apply HLEP conditions and generate Search-R1 traces.
 Usage: python scripts/02_generate_traces.py --split test [--closed_book]"""
+import os
+os.environ.setdefault("VLLM_WORKER_MULTIPROC_METHOD", "spawn")  # safe multi-GPU start
+
 import argparse
 import random
 
@@ -20,7 +23,7 @@ g = cfg["generator"]
 
 recs = load_jsonl(f"outputs/{args.split}.jsonl")
 external = load_jsonl("outputs/external_paragraphs.jsonl")
-retr = PoolRetriever(cfg["retriever"])
+retr = PoolRetriever(cfg["retriever"], device="cpu")   # CPU: keeps both GPUs free for vLLM
 try:                                          # spaCy typing: pip install spacy; python -m spacy download en_core_web_sm
     import spacy
     ner = spacy.load("en_core_web_sm")

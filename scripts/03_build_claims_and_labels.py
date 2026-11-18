@@ -1,6 +1,9 @@
 """Segment steps, decontextualise, construct labels (HLEP) and judge the rest.
 Also computes y_pool (gold scope = pool) and the later-supported flag for LSR.
 Usage: python scripts/03_build_claims_and_labels.py --split test"""
+import os
+os.environ.setdefault("VLLM_WORKER_MULTIPROC_METHOD", "spawn")  # safe multi-GPU start
+
 import argparse
 
 import yaml

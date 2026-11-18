@@ -1,5 +1,8 @@
 """Score every (claim, scope, verifier) and meter cost (Algorithm 2).
 Usage: python scripts/04_score_verifiers.py --split test --verifiers nli minicheck alignscore"""
+import os
+os.environ.setdefault("VLLM_WORKER_MULTIPROC_METHOD", "spawn")  # safe multi-GPU start
+
 import argparse
 import random
 
@@ -53,5 +56,6 @@ for vname in args.verifiers:
                          "verifier": vname, "scope": scope, "score": s, "calls": m.calls,
                          "tokens_in": m.tokens_in, "tokens_out": m.tokens_out, "seconds": m.seconds})
     del v
-pd.DataFrame(rows).to_csv(f"outputs/{args.split}_scores.csv", index=False)
-print(f"{len(rows)} score rows written")
+out = f"outputs/{args.split}_scores_{'-'.join(args.verifiers)}.csv"
+pd.DataFrame(rows).to_csv(out, index=False)
+print(f"{len(rows)} score rows written to {out}")
