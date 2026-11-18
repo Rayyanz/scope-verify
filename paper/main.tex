@@ -45,7 +45,7 @@ i267827@isb.nu.edu.pk (corresponding author)}
 \maketitle
 
 \begin{abstract}
-Search-interleaved large language models answer multi-hop questions by alternating reasoning steps with retrieval, and step-level grounding verifiers are used to detect intermediate claims that the retrieved evidence does not support. Existing step-level benchmarks each fix, by convention, the evidence against which a step is judged, yet these conventions differ; detection is evaluated only on naturally occurring errors in small human-labelled samples; and verification cost is not reported. We propose a controlled evaluation framework: hop-localized evidence perturbation (HLEP), which removes or edits the gold evidence of a known hop and derives typed step labels by construction; a scope-controlled protocol that decouples gold-label scope from verifier input scope, with a length-matched control; and a calibrated verification cascade. We implement the complete, unit-tested pipeline for Search-R1 traces from Qwen2.5-7B on MuSiQue, with AUROC, recall at 95\% retention (R@95), cost, and question-level bootstrap testing. As the base method, we reproduce MiniCheck-Flan-T5-L on the LLM-AggreFact test set: the average balanced accuracy of 75.0\% matches the published value, with 10 of 11 datasets identical. In a 100-question pilot (876 step claims), perturbation raises the ungrounded-step rate from 7\% to 35\%, and 24\% of ungrounded steps are entailed by evidence retrieved later. For an NLI verifier, R@95 falls from 0.30 to 0.14 when it sees all documents rather than those available at the step, a difference not yet significant after correction, at 4.9 times the cost. Code is available at \url{https://github.com/Rayyanz/scope-verify}.
+Search-interleaved large language models answer multi-hop questions by alternating reasoning steps with retrieval, and step-level grounding verifiers are used to detect intermediate claims that the retrieved evidence does not support. Existing step-level benchmarks each fix, by convention, the evidence against which a step is judged, yet these conventions differ, detection is evaluated on small human-labelled samples, and cost is not reported. We propose a controlled evaluation framework: hop-localized evidence perturbation (HLEP), which removes or edits the gold evidence of a known hop and derives typed step labels by construction; a scope-controlled protocol that decouples gold-label scope from verifier input scope, with a length-matched control; and a calibrated verification cascade. We implement the unit-tested pipeline for Search-R1 traces from Qwen2.5-7B on MuSiQue, with AUROC, recall at 95\% retention (R@95), cost, and bootstrap testing. As the base method, we reproduce MiniCheck-Flan-T5-L on the LLM-AggreFact test set: the average balanced accuracy of 75.0\% matches the published value, with 10 of 11 datasets identical. In a 100-question pilot (876 step claims), perturbation raises the ungrounded-step rate from 7\% to 35\%, and 24\% of ungrounded steps are entailed by evidence retrieved later. For an NLI verifier, R@95 falls from 0.30 to 0.14 when it sees all documents, not yet significant after correction, at 4.9 times the cost. A Mistral-7B judge is less accurate than both small verifiers (AUROC 0.65 versus 0.84), so a calibrated cascade never escalates to it. Code is available at \url{https://github.com/Rayyanz/scope-verify}.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -66,7 +66,7 @@ This paper addresses three objectives: (O1) measure how step-level detection met
 \item \textbf{Hop-localized evidence perturbation (HLEP)}, a procedure that removes, replaces with an external distractor, or counterfactually edits the gold paragraph of a chosen hop, together with a formal label-construction rule that assigns typed step labels (Missing Bridge, Irrelevant Evidence, Contradicted Claim) by construction (Algorithm~\ref{alg:hlep}).
 \item \textbf{A scope-controlled verification protocol} that decouples the gold-label scope from the verifier input scope, adds a length-matched control to separate scope from input length, and defines the later-supported rate as a direct measure of masking by out-of-scope evidence (Algorithm~\ref{alg:scope}).
 \item \textbf{A budget-constrained verification cascade} whose escalation band is calibrated on validation data under an explicit AUROC tolerance, evaluated on a detection--cost frontier (Algorithm~\ref{alg:cascade}).
-\item \textbf{A complete, unit-tested implementation} of the framework, an exact reproduction of MiniCheck~\cite{tang2024minicheck}, the base method, on the full LLM-AggreFact test set, and an end-to-end pilot on 100 MuSiQue questions with preliminary results for RQ1.
+\item \textbf{A complete, unit-tested implementation} of the framework, an exact reproduction of MiniCheck~\cite{tang2024minicheck}, the base method, on the full LLM-AggreFact test set, and an end-to-end pilot on 100 MuSiQue questions with preliminary results for RQ1 and RQ3.
 \end{itemize}
 The study evaluates \emph{local} step support only; question alignment and answer closure, which can fail even when every step is supported~\cite{chu2026locally}, are out of scope.
 
@@ -421,8 +421,8 @@ Search-R1 trace generation & \texttt{generate.py} & \textbf{executed} (pilot) \\
 Claim extraction & \texttt{claims.py} & \textbf{executed} (pilot), tested \\
 Label construction (Table~\ref{tab:rules}) & \texttt{labels.py} & \textbf{executed} (pilot), tested \\
 Evidence scopes (Eq.~\ref{eq:scopes}) & \texttt{scopes.py} & \textbf{executed} (pilot), tested \\
-Verifiers + cost meter (Eq.~\ref{eq:score}) & \texttt{verifiers.py} & \textbf{executed}: NLI, MiniCheck \\
-Calibrated cascade (Alg.~\ref{alg:cascade}) & \texttt{cascade.py} & implemented, tested \\
+Verifiers + cost meter (Eq.~\ref{eq:score}) & \texttt{verifiers.py} & \textbf{executed}: NLI, MiniCheck, LLM judge \\
+Calibrated cascade (Alg.~\ref{alg:cascade}) & \texttt{cascade.py} & \textbf{executed} (pilot), tested \\
 Metrics, bootstrap, Holm & \texttt{metrics.py}, \texttt{stats.py} & \textbf{executed} (pilot), tested \\
 Base reproduction (MiniCheck) & \texttt{reproduce\_minicheck.py} & \textbf{executed; matches} (Table~\ref{tab:repro}) \\
 \bottomrule
@@ -493,7 +493,7 @@ Average & 29,320 & 75.0 & 75.0 & 0.0 & 73.5 \\
 \textbf{Baselines in the main study.} Trivial baselines (flag-all, flag-none, random at the base rate) are reported beside every F1, following~\cite{ji2026stepgap}. The fixed-scope conventions of prior benchmarks act as the comparison condition for the scope protocol: $\sigma=\mathrm{acc}$ reproduces the StepGap convention~\cite{ji2026stepgap} and $\sigma=\mathrm{pool}$ the full-context convention~\cite{pham2026grace,chu2026locally,kwon2026safe}.
 
 \subsection{Pilot Experiment: Results}
-\textbf{Setup.} The full pipeline was run end to end on 100 questions sampled from the MuSiQue training split (the validation sample used for tuning; these results are therefore not comparable to published MuSiQue figures). Search-R1 generated 296 traces under the clean, removed, and counterfactual conditions; for 4 questions no valid same-type substitute existed, so the counterfactual condition has 96 questions. Rule-based extraction yielded 876 step claims, of which 114 were labelled by construction and 762 by the Llama-3.1-8B judge. NLI and MiniCheck scored every claim under all five scopes (8,760 scores). The LLM-judge verifier, the cascade, the 299-question test run, and human validation are the next stages. All intervals are 95\% question-level bootstrap intervals ($B=10{,}000$, 100 clusters).
+\textbf{Setup.} The full pipeline was run end to end on 100 questions sampled from the MuSiQue training split (the validation sample used for tuning; these results are therefore not comparable to published MuSiQue figures). Search-R1 generated 296 traces under the clean, removed, and counterfactual conditions; for 4 questions no valid same-type substitute existed, so the counterfactual condition has 96 questions. Rule-based extraction yielded 876 step claims, of which 114 were labelled by construction and 762 by the Llama-3.1-8B judge. NLI, MiniCheck, and the Mistral-7B LLM judge scored every claim under all five scopes (13,140 scores). The 299-question test run and human validation are the next stages. All intervals are 95\% question-level bootstrap intervals ($B=10{,}000$, 100 clusters).
 
 \begin{table}[t]
 \caption{Pilot: generator behaviour and step labels by condition (100 MuSiQue questions).}\label{tab:pilot}
@@ -546,10 +546,12 @@ Time per claim, $\Eacc$ / $\Epool$ (s) & \multicolumn{2}{c}{0.091 / 0.443} & \mu
 \toprule
 Comparison & $\Delta$ & 95\% CI & $p$ (Holm) \\
 \midrule
-H1a NLI: R@95 $\Eacc-\Etraj$ & $+$0.087 & [$+$0.000, $+$0.153] & 0.20 \\
-H1a NLI: R@95 $\Eacc-\Epool$ & $+$0.161 & [$-$0.006, $+$0.250] & 0.20 \\
-H1a MiniCheck: R@95 $\Eacc-\Etraj$ & $+$0.012 & [$-$0.015, $+$0.093] & 0.29 \\
-H1a MiniCheck: R@95 $\Eacc-\Epool$ & $+$0.006 & [$-$0.060, $+$0.108] & 0.50 \\
+H1a NLI: R@95 $\Eacc-\Etraj$ & $+$0.087 & [$+$0.000, $+$0.153] & 0.31 \\
+H1a NLI: R@95 $\Eacc-\Epool$ & $+$0.161 & [$-$0.006, $+$0.250] & 0.32 \\
+H1a MiniCheck: R@95 $\Eacc-\Etraj$ & $+$0.012 & [$-$0.015, $+$0.093] & 0.58 \\
+H1a MiniCheck: R@95 $\Eacc-\Epool$ & $+$0.006 & [$-$0.060, $+$0.108] & 1.00 \\
+H1a LLM judge: R@95 $\Eacc-\Etraj$ & $+$0.050 & [$-$0.169, $+$0.290] & 0.59 \\
+H1a LLM judge: R@95 $\Eacc-\Epool$ & $-$0.130 & [$-$0.235, $+$0.142] & 1.00 \\
 \midrule
 NLI: AUROC $\Eacc-\Epool$ & $+$0.013 & [$-$0.005, $+$0.033] & -- \\
 MiniCheck: AUROC $\Eacc-\Epool$ & $+$0.018 & [$+$0.003, $+$0.035] & -- \\
@@ -562,11 +564,38 @@ Later-supported rate (Eq.~\ref{eq:lsr}) & 0.242 & [0.164, 0.328] & -- \\
 \end{tabular}}
 \end{table}
 
-\textbf{RQ1: evidence scope.} Threshold-free ranking quality is stable across scopes: AUROC lies between 0.822 and 0.843 for both verifiers, with every interval overlapping, and both verifiers score highest under $\Eacc$, the scope that matches the primary gold definition (Table~\ref{tab:rq1pilot}). At the strict operating point the picture differs by verifier. For NLI, R@95 falls from 0.304 under $\Eacc$ to 0.217 under $\Etraj$ and 0.143 under $\Epool$, which is the direction predicted by H1a: when the verifier also sees documents that the generator had not yet retrieved, it misses more ungrounded steps. MiniCheck shows no such drop. After Holm correction none of the four H1a differences is significant in the pilot ($p_{\mathrm{Holm}}\ge0.20$; Table~\ref{tab:tests}), so H1a is \emph{not supported at pilot scale}, and the NLI pattern needs the larger test run. Among the exploratory comparisons, MiniCheck's AUROC is slightly higher under $\Eacc$ than under $\Epool$ ($+0.018$, interval excluding zero, uncorrected).
+\textbf{RQ1: evidence scope.} Threshold-free ranking quality is stable across scopes: AUROC lies between 0.822 and 0.843 for both verifiers, with every interval overlapping, and both verifiers score highest under $\Eacc$, the scope that matches the primary gold definition (Table~\ref{tab:rq1pilot}). At the strict operating point the picture differs by verifier. For NLI, R@95 falls from 0.304 under $\Eacc$ to 0.217 under $\Etraj$ and 0.143 under $\Epool$, which is the direction predicted by H1a: when the verifier also sees documents that the generator had not yet retrieved, it misses more ungrounded steps. MiniCheck shows no such drop. After Holm correction none of the six H1a differences is significant in the pilot ($p_{\mathrm{Holm}}\ge0.31$; Table~\ref{tab:tests}), so H1a is \emph{not supported at pilot scale}, and the NLI pattern needs the larger test run. Among the exploratory comparisons, MiniCheck's AUROC is slightly higher under $\Eacc$ than under $\Epool$ ($+0.018$, interval excluding zero, uncorrected).
 
 \textbf{Masking and its mechanism.} The opportunity for masking is substantial: 24.2\% [16.4\%, 32.8\%] of the 161 steps that were ungrounded when written are entailed by evidence retrieved later in the same trace (LSR), so an evaluation that uses $\Etraj$ or $\Epool$ counts about one in four of them as supported. The length control suggests part of the effect comes from the amount of text rather than its content: adding irrelevant paragraphs to $\Eloc$ lowers NLI's R@95 from 0.298 to 0.230, although this difference is not significant. A plausible mechanism is the max-aggregation of Eq.~\eqref{eq:score}: every additional paragraph is another chance for a spurious high support score.
 
 \textbf{H1b and H1c.} At the strict operating point, NLI ranks above MiniCheck under $\Eacc$ (R@95 0.304 versus 0.217) but below it under $\Epool$ (0.143 versus 0.211), the pattern H1b looks for; both intervals include zero, and the AUROC differences between verifiers are at most 0.007, so no reversal is established. Under the alternative gold definition $g=\mathrm{pool}$, AUROC is 0.009--0.039 lower than under $g=\mathrm{acc}$, with intervals including zero (H1c not supported). The two gold definitions disagree on 14\% of claims; 48 claims are judged supported by $\Eacc$ yet unsupported by its superset $\Epool$, which is logically inconsistent and indicates that the LLM judge is less reliable with long evidence. This label noise, together with the human validation still to be done, is the main caveat of the pilot.
+
+\begin{table}[t]
+\caption{Pilot: LLM judge (Mistral-7B) by scope and calibrated cascade (scope $\Eacc$). Cascade bands are calibrated on one half of the questions and evaluated on the other (two-fold). 95\% bootstrap intervals.}\label{tab:judge}
+\centering\footnotesize
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{@{}lccc@{}}
+\toprule
+LLM judge, scope & AUROC & R@95 & s/claim \\
+\midrule
+$\Eloc$ & 0.659 {\tiny[.612,.708]} & 0.180 {\tiny[.110,.369]} & 0.248 \\
+$\Eacc$ & 0.651 {\tiny[.600,.705]} & 0.075 {\tiny[.027,.353]} & 0.247 \\
+$\Etraj$ & 0.617 {\tiny[.574,.660]} & 0.025 {\tiny[.000,.267]} & 0.245 \\
+$\Epool$ & 0.624 {\tiny[.567,.681]} & 0.205 {\tiny[.000,.316]} & 1.038 \\
+$\Epad$ & 0.621 {\tiny[.570,.671]} & 0.062 {\tiny[.014,.124]} & 0.440 \\
+\midrule
+Placement ($\Eacc$) & AUROC & escalated & s/claim \\
+\midrule
+P1: LLM judge on every step & 0.651 & 100\% & 0.247 \\
+P2: NLI on every step & 0.843 & -- & 0.091 \\
+P2: MiniCheck on every step & 0.840 & -- & 0.143 \\
+P3: cascade, NLI $\rightarrow$ judge & 0.843 & 0\% & 0.091 \\
+P3: cascade, MiniCheck $\rightarrow$ judge & 0.840 & 0\% & 0.143 \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\textbf{LLM judge and RQ3.} The Mistral-7B judge is markedly weaker than both small verifiers: under $\Eacc$ its AUROC is 0.651, lower than NLI by 0.191 [0.131, 0.252] and than MiniCheck by 0.189 [0.129, 0.247], and it is also slower (Table~\ref{tab:judge}). Most of its scores are exactly 1.0: it reports full confidence that a claim is supported for most steps, so its scores rank ungrounded steps poorly. Its AUROC does not differ significantly between $\Eacc$ and $\Epool$ ($+0.027$ [$-0.038$, $+0.088$]). Because the expensive verifier is the less accurate one, the calibrated cascade selects an empty escalation band in both folds: no escalation band raises AUROC above the cheap verifier alone, and every placement that calls the judge is dominated in both detection and cost. With this judge, P3 reduces to P2, and the cheap verifier alone achieves 0.843 AUROC at 37\% of the judge's time per claim (NLI). Formally, H3 is supported, since the cascade's AUROC exceeds the judge's by 0.191 [0.131, 0.252] at lower cost, but only trivially, because the cascade never calls the judge. This answers RQ3 for the pilot configuration; it may partly reflect the way the judge is queried and scored (normalized probability of option A), and a stronger or differently prompted judge could change it. Since the gold labels also come from an LLM judge (Llama-3.1-8B), agreement between judges is a further point for the human validation.
 
 \textbf{Cost.} Verifying against $\Epool$ requires 17,217 claim--paragraph pairs against 3,946 for $\Eacc$; per claim it takes 4.9 times longer for NLI (0.443\,s versus 0.091\,s) and 4.3 times longer for MiniCheck, with no gain in detection. The full-context convention is therefore the most expensive and, in this pilot, not the most accurate.
 
@@ -580,7 +609,7 @@ Four ablations isolate design choices: (A1) including preceding claims as premis
 \section{Conclusion}\label{sec:conclusion}
 This work set out to determine whether the evaluation conventions of step-level grounding verification for iterative multi-hop RAG affect what we conclude about verifiers. Rather than proposing another verifier, it contributes a measurement framework: hop-localized evidence perturbation with typed labels by construction, a scope-controlled verification protocol with a length control and a masking measure (the later-supported rate), and a cascade calibrated under an explicit detection tolerance. The framework is fully implemented and unit-tested, and the base method was reproduced exactly: MiniCheck-Flan-T5-L reaches the published 75.0\% average balanced accuracy on the 11 LLM-AggreFact datasets, with 10 datasets identical and one within 0.2 points, and both MiniCheck variants are accurate on the step-level REVEAL benchmark.
 
-A 100-question pilot ran the full pipeline end to end. It confirms that hop-localized perturbation produces the intended ungrounded steps (6.9\% to 35.3\%) and that the masking opportunity is real: about one in four ungrounded steps is entailed by evidence retrieved later. For the NLI verifier, recall at a 5\% false-alarm rate halves when it sees all documents, but this and the other hypothesis tests are not significant at pilot scale, so H1--H3 remain open; the full-context convention was, however, 4.3--4.9 times more expensive with no gain in detection. Objective O1 is therefore partly addressed, while O2 and O3 require the test run and the LLM-judge verifier. The study also has inherent limitations. It assesses local step support only, not question alignment or answer closure~\cite{chu2026locally}. It uses English Wikipedia data, one generator family, and closed per-question pools, so transfer to open-corpus retrieval is untested. Perturbations are controlled but artificial, and the mapping to error types is approximate. Pretraining exposure is controlled by the counterfactual condition and closed-book stratification, not eliminated. Clean-condition labels rely on an LLM judge, and the pilot showed that this judge is inconsistent on some claims when given long evidence; human validation is therefore essential.
+A 100-question pilot ran the full pipeline end to end. It confirms that hop-localized perturbation produces the intended ungrounded steps (6.9\% to 35.3\%) and that the masking opportunity is real: about one in four ungrounded steps is entailed by evidence retrieved later. For the NLI verifier, recall at a 5\% false-alarm rate halves when it sees all documents, but this and the other H1 and H2 tests are not significant at pilot scale, so those hypotheses remain open; the full-context convention was, however, 4.3--4.9 times more expensive with no gain in detection. For RQ3, the pilot gives a clear answer for this configuration: a Mistral-7B judge was less accurate than both small verifiers (AUROC 0.65 versus 0.84), so a calibrated cascade never escalated to it and H3 holds only trivially; the cheap verifier alone was the most accurate and cheapest placement. Objectives O1 and O3 are therefore partly addressed, while O2 requires the test run. The study also has inherent limitations. It assesses local step support only, not question alignment or answer closure~\cite{chu2026locally}. It uses English Wikipedia data, one generator family, and closed per-question pools, so transfer to open-corpus retrieval is untested. Perturbations are controlled but artificial, and the mapping to error types is approximate. Pretraining exposure is controlled by the counterfactual condition and closed-book stratification, not eliminated. Clean-condition labels rely on an LLM judge, and the pilot showed that this judge is inconsistent on some claims when given long evidence; human validation is therefore essential.
 
 Future work will first complete the 299-question test study with the LLM-judge verifier, the cascade, and human validation, then add the distractor condition, the 2WikiMultihopQA replication, the $\Epool$ gold definition, and placements P4--P5. Further directions are a second generator with a different step format, extension to open-corpus retrieval, and using the later-supported rate as a training signal for verifiers that must judge the evidence available at generation time rather than all evidence retrieved.
 
