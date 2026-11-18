@@ -107,3 +107,11 @@ def test_bootstrap_and_cascade():
     assert lo <= p <= hi
     band = calibrate_band(cheap, judge, y, 1.0, 50.0, delta=0.02)
     assert band is not None and band["escalation_rate"] < 1.0
+
+
+def test_clean_claim():
+    from scopeverify.claims import clean_claim
+    assert clean_claim("I found out that the drinking age in Wisconsin is 21. Now I can provide the answer.") \
+        == "The drinking age in Wisconsin is 21."
+    assert clean_claim("I need to find the director. I'll search for it.") == ""
+    assert clean_claim("I found out that Sure of You was built. The city is unknown.") == "Sure of You was built."

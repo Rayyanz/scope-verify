@@ -1,4 +1,6 @@
-"""Step segmentation, claim filtering and decontextualisation (paper Sec. III-A).
+"""Step segmentation and claim extraction (paper Sec. III-A).
+
+Primary: rule-based `clean_claim`. Optional (ablation A2): LLM decontextualisation.
 
 `llm_fn` is any callable mapping a list of prompts to a list of strings, e.g.
 a thin wrapper around vLLM. Validate both prompts on ~50 hand-checked steps.
@@ -6,6 +8,29 @@ a thin wrapper around vLLM. Validate both prompts on ~50 hand-checked steps.
 import re
 
 THINK_RE = re.compile(r"<think>(.*?)</think>", re.S)
+
+# Deterministic claim extraction (primary method): keep the model's own factual sentences,
+# drop planning sentences and non-assertions, strip narration such as "I found out that".
+PLAN_RE = re.compile(r"^(now,? )?(i|we) (need|will|should|must|have to|want|can now|can|am going|'ll)\b"
+                     r"|^(i'll|let me|let's|next,?|to (answer|find|determine)|i don't|i do not|i couldn't"
+                     r"|i could not|however,? i|unfortunately)\b", re.I)
+LEAD_RE = re.compile(r"^(i (have )?(found|find|learned|see|know|now know) (out )?(that )?"
+                     r"|based on (the|this|my) [^,]+, |according to [^,]+, |so,? |therefore,? |thus,? )", re.I)
+NONFACT_RE = re.compile(r"\b(unknown|not (mentioned|found|specified|provided|clear)|no information"
+                        r"|cannot be determined)\b", re.I)
+
+
+def clean_claim(text):
+    """Return the factual sentences of a step, or "" if it contains none."""
+    keep = []
+    for s in re.split(r"(?<=[.!?])\s+", text.strip()):
+        s = s.strip()
+        if not s or s.endswith("?") or PLAN_RE.search(s) or NONFACT_RE.search(s):
+            continue
+        s = LEAD_RE.sub("", s).strip()
+        if len(s.split()) >= 3:
+            keep.append(s[0].upper() + s[1:])
+    return " ".join(keep)
 
 FILTER_PROMPT = (
     "Does the following text assert at least one fact about the world (not only a plan, "

@@ -9,14 +9,14 @@ import argparse
 
 import yaml
 
-from scopeverify.claims import DECONTEXT_PROMPT, FILTER_PROMPT, step_text
+from scopeverify.claims import DECONTEXT_PROMPT, clean_claim, step_text
 from scopeverify.data import load_jsonl, save_jsonl
 from scopeverify.labels import (JUDGE_PROMPT, binary, construct_label, format_evidence,
                                 parse_judge)
 from scopeverify.scopes import build_scopes, retrieved_before
 
 
-def build_rows(cfg, split, llm):
+def build_rows(cfg, split, llm, decontext=False):
     """llm(prompts, max_tokens) -> list[str]. Returns labelled claim rows."""
     items = []
     for cond in cfg["conditions"]:
@@ -29,16 +29,18 @@ def build_rows(cfg, split, llm):
                                   "raw": txt, "hist": "\n".join(t for t in texts[:i] if t) or "(none)"})
     print(f"{len(items)} non-empty steps")
 
-    # 1) filter non-claims (batched)
-    outs = llm([FILTER_PROMPT.format(text=it["raw"]) for it in items], 8)
-    items = [it for it, o in zip(items, outs) if "NOT" not in o.upper()]
+    # 1) rule-based claim extraction (primary; deterministic)
+    for it in items:
+        it["claim"] = clean_claim(it["raw"])
+    items = [it for it in items if it["claim"]]
     print(f"{len(items)} steps kept as claims")
 
-    # 2) decontextualise (batched)
-    outs = llm([DECONTEXT_PROMPT.format(question=it["tr"]["question"], history=it["hist"],
-                                        text=it["raw"]) for it in items], 256)
-    for it, o in zip(items, outs):
-        it["claim"] = o.strip() or it["raw"]
+    # 2) optional LLM decontextualisation, stored for ablation A2 only
+    if decontext:
+        outs = llm([DECONTEXT_PROMPT.format(question=it["tr"]["question"], history=it["hist"],
+                                            text=it["raw"]) for it in items], 256)
+        for it, o in zip(items, outs):
+            it["claim_llm"] = o.strip()
 
     # 3) scopes + labels by construction
     for it in items:
@@ -62,12 +64,14 @@ def build_rows(cfg, split, llm):
         it["label_traj"] = lab
 
     rows = []
+    items = [it for it in items if it["label"] is not None]     # drop unparseable judge outputs
     for it in items:
         y_acc = binary(it["label"])
         rows.append({"qid": it["tr"]["id"], "t": it["t"], "raw": it["raw"], "claim": it["claim"],
                      "condition": it["cond"], "label": it["label"], "label_source": it["source"],
                      "y_acc": y_acc, "y_pool": binary(it["label_pool"]),
-                     "later_supported": (binary(it["label_traj"]) == 0) if y_acc == 1 else None})
+                     "later_supported": (binary(it["label_traj"]) == 0) if y_acc == 1 else None,
+                     "claim_llm": it.get("claim_llm")})
     return rows
 
 
@@ -75,12 +79,13 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default="configs/default.yaml")
     ap.add_argument("--split", default="test")
+    ap.add_argument("--decontext", action="store_true", help="also store LLM-decontextualised claims (ablation A2)")
     args = ap.parse_args()
     cfg = yaml.safe_load(open(args.config))
 
     from scopeverify.llm import VLLMText
     judge = VLLMText(cfg["label_judge"], max_tokens=256, vllm_kwargs=cfg.get("vllm"))
-    rows = build_rows(cfg, args.split, lambda prompts, mt: judge(prompts, max_tokens=mt))
+    rows = build_rows(cfg, args.split, lambda prompts, mt: judge(prompts, max_tokens=mt), args.decontext)
     save_jsonl(rows, f"outputs/{args.split}_claims_labeled.jsonl")
     n_c = sum(r["label_source"] == "construction" for r in rows)
     print(f"{len(rows)} labelled claims ({n_c} by construction)")
