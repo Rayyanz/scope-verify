@@ -15,6 +15,8 @@ vllm:                   # Kaggle 2x T4: fp16 (T4 has no bfloat16), tensor parall
   dtype: half
   max_model_len: 8192
   gpu_memory_utilization: 0.85   # leave headroom for other models
+  enforce_eager: true             # T4: skip CUDA graphs / compile
+  disable_custom_all_reduce: true  # T4s have no NVLink
 retriever: intfloat/e5-base-v2
 label_judge: meta-llama/Llama-3.1-8B-Instruct     # never also used as a verifier
 verifiers:
