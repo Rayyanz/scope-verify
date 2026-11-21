@@ -60,6 +60,12 @@ def generate_traces(records, model_id, retriever, k=3, max_turns=5,
             q = SEARCH_RE.search(text)
             if ans:
                 st["answer"] = ans.group(1).strip()
+            elif q and closed_book and turn < max_turns:
+                # closed-book: the model may still ask to search (it is trained to); return no
+                # documents so that any answer must come from parametric memory
+                step["query"] = q.group(1).strip()
+                st["ctx"] += "\n\n<information>No results found.</information>\n\n"
+                still.append(qid)
             elif q and not closed_book and turn < max_turns:
                 step["query"] = q.group(1).strip()
                 docs = retriever.search(step["query"], st["rec"]["pool"], k=k)
