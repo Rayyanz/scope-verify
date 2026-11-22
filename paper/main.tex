@@ -45,7 +45,7 @@ i267827@isb.nu.edu.pk (corresponding author)}
 \maketitle
 
 \begin{abstract}
-Search-interleaved large language models answer multi-hop questions by alternating reasoning steps with retrieval, and step-level grounding verifiers are used to detect intermediate claims that the retrieved evidence does not support. Existing step-level benchmarks each fix, by convention, the evidence against which a step is judged, yet these conventions differ, detection is evaluated on small human-labelled samples, and cost is not reported. We propose a controlled evaluation framework: hop-localized evidence perturbation (HLEP), which removes or edits the gold evidence of a known hop and derives typed step labels by construction; a scope-controlled protocol that decouples gold-label scope from verifier input scope, with a length-matched control; and a calibrated verification cascade. We implement the unit-tested pipeline for Search-R1 traces from Qwen2.5-7B on MuSiQue, with AUROC, recall at 95\% retention (R@95), cost, and bootstrap testing. As the base method, we reproduce MiniCheck-Flan-T5-L on the LLM-AggreFact test set: the average balanced accuracy of 75.0\% matches the published value, with 10 of 11 datasets identical. In a 100-question pilot (876 step claims), perturbation raises the ungrounded-step rate from 7\% to 35\%, and 24\% of ungrounded steps are entailed by evidence retrieved later. For an NLI verifier, R@95 falls from 0.30 to 0.14 when it sees all documents, not yet significant after correction, at 4.9 times the cost. A Mistral-7B judge is less accurate than both small verifiers (AUROC 0.65 versus 0.84), so a calibrated cascade never escalates to it. Code is available at \url{https://github.com/Rayyanz/scope-verify}.
+Search-interleaved large language models answer multi-hop questions by alternating reasoning steps with retrieval, and step-level grounding verifiers are used to detect intermediate claims that the retrieved evidence does not support. Existing step-level benchmarks each fix, by convention, the evidence against which a step is judged, yet these conventions differ. We propose a controlled evaluation framework: hop-localized evidence perturbation (HLEP), which removes or edits the gold evidence of a known hop and derives typed step labels by construction; a scope-controlled protocol that decouples gold-label scope from verifier input scope, with a length-matched control; and a calibrated verification cascade. As the base method, we reproduce MiniCheck-Flan-T5-L on LLM-AggreFact exactly (75.0\% average balanced accuracy). On 299 MuSiQue questions with Search-R1 traces from Qwen2.5-7B (2,761 step claims), all three verifiers tested (NLI, MiniCheck, and a Mistral-7B judge) rank ungrounded steps significantly worse when given evidence retrieved after the step or all documents than when given the evidence available at the step, by 0.015--0.065 AUROC; 17\% of ungrounded steps are entailed by later evidence, so later-scope evaluation hides them. Full-context verification costs about 4.4 times more, and the judge ranks worse than both small verifiers (AUROC 0.70 versus 0.85), so a calibrated cascade never escalates. Verifier rankings did not change, and typed errors were too few to compare. Code is available at \url{https://github.com/Rayyanz/scope-verify}.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -66,7 +66,7 @@ This paper addresses three objectives: (O1) measure how step-level detection met
 \item \textbf{Hop-localized evidence perturbation (HLEP)}, a procedure that removes, replaces with an external distractor, or counterfactually edits the gold paragraph of a chosen hop, together with a formal label-construction rule that assigns typed step labels (Missing Bridge, Irrelevant Evidence, Contradicted Claim) by construction (Algorithm~\ref{alg:hlep}).
 \item \textbf{A scope-controlled verification protocol} that decouples the gold-label scope from the verifier input scope, adds a length-matched control to separate scope from input length, and defines the later-supported rate as a direct measure of masking by out-of-scope evidence (Algorithm~\ref{alg:scope}).
 \item \textbf{A budget-constrained verification cascade} whose escalation band is calibrated on validation data under an explicit AUROC tolerance, evaluated on a detection--cost frontier (Algorithm~\ref{alg:cascade}).
-\item \textbf{A complete, unit-tested implementation} of the framework, an exact reproduction of MiniCheck~\cite{tang2024minicheck}, the base method, on the full LLM-AggreFact test set, and an end-to-end pilot on 100 MuSiQue questions with preliminary results for RQ1 and RQ3.
+\item \textbf{A complete, unit-tested implementation} of the framework, an exact reproduction of MiniCheck~\cite{tang2024minicheck}, the base method, on the full LLM-AggreFact test set, and an end-to-end evaluation on 299 MuSiQue questions (2,761 step claims, three verifiers, five evidence scopes) with results for RQ1 and RQ3.
 \end{itemize}
 The study evaluates \emph{local} step support only; question alignment and answer closure, which can fail even when every step is supported~\cite{chu2026locally}, are out of scope.
 
@@ -133,7 +133,7 @@ Hops per question & 2--4 & 2--4 \\
 Per-hop gold evidence & paragraph index & evidence triple \\
 \midrule
 Validation sample (from train) & 100 (pilot) & 150 (planned) \\
-Test sample (from dev) & 300 (preliminary) & 500 (planned) \\
+Test sample (from dev) & 299 (used) & 500 (planned) \\
 \bottomrule
 \end{tabular}}
 \end{table}
@@ -397,9 +397,9 @@ AlignScore & RoBERTa-large, \texttt{nli\_sp} mode \\
 MiniCheck & \texttt{flan-t5-large} (base reproduction); \texttt{roberta-large} \\
 LLM judge & \texttt{mistralai/Mistral-7B-Instruct-v0.3}; 3-way prompt; score $=P(\textsc{Sup})$ \\
 Label judge & \texttt{meta-llama/Llama-3.1-8B-Instruct} \\
-Thresholds & max step F1 on validation \\
+Operating point & R@95: 5\% of supported steps flagged \\
 Cascade & grid step 0.05; $\delta$ fixed after the pilot, before test evaluation \\
-Bootstrap & $B=10{,}000$ question-level resamples; seed 13 \\
+Bootstrap & question-level; $B=10{,}000$ (pilot), $5{,}000$ (test); seed 13 \\
 \bottomrule
 \end{tabular}}
 \end{table}
@@ -416,15 +416,16 @@ Component & Module & Status \\
 \midrule
 Data loading, stratified sampling & \texttt{data.py} & implemented; data downloaded \\
 Per-question E5 retriever & \texttt{retriever.py} & implemented \\
-HLEP perturbation (Eqs.~\ref{eq:perturb}) & \texttt{perturb.py} & \textbf{executed} (pilot), tested \\
-Search-R1 trace generation & \texttt{generate.py} & \textbf{executed} (pilot) \\
-Claim extraction & \texttt{claims.py} & \textbf{executed} (pilot), tested \\
-Label construction (Table~\ref{tab:rules}) & \texttt{labels.py} & \textbf{executed} (pilot), tested \\
-Evidence scopes (Eq.~\ref{eq:scopes}) & \texttt{scopes.py} & \textbf{executed} (pilot), tested \\
-Verifiers + cost meter (Eq.~\ref{eq:score}) & \texttt{verifiers.py} & \textbf{executed}: NLI, MiniCheck, LLM judge \\
-Calibrated cascade (Alg.~\ref{alg:cascade}) & \texttt{cascade.py} & \textbf{executed} (pilot), tested \\
-Metrics, bootstrap, Holm & \texttt{metrics.py}, \texttt{stats.py} & \textbf{executed} (pilot), tested \\
+HLEP perturbation (Eqs.~\ref{eq:perturb}) & \texttt{perturb.py} & \textbf{executed} (pilot, test), tested \\
+Search-R1 trace generation & \texttt{generate.py} & \textbf{executed} (pilot, test) \\
+Claim extraction & \texttt{claims.py} & \textbf{executed} (pilot, test), tested \\
+Label construction (Table~\ref{tab:rules}) & \texttt{labels.py} & \textbf{executed} (pilot, test), tested \\
+Evidence scopes (Eq.~\ref{eq:scopes}) & \texttt{scopes.py} & \textbf{executed} (pilot, test), tested \\
+Verifiers + cost meter (Eq.~\ref{eq:score}) & \texttt{verifiers.py} & \textbf{executed} (pilot, test): 3 verifiers \\
+Calibrated cascade (Alg.~\ref{alg:cascade}) & \texttt{cascade.py} & \textbf{executed} (pilot, test), tested \\
+Metrics, bootstrap, Holm & \texttt{metrics.py}, \texttt{stats.py} & \textbf{executed} (pilot, test), tested \\
 Base reproduction (MiniCheck) & \texttt{reproduce\_minicheck.py} & \textbf{executed; matches} (Table~\ref{tab:repro}) \\
+Human label validation & annotation sheet & pending \\
 \bottomrule
 \end{tabular}}
 \end{table}
@@ -492,126 +493,148 @@ Average & 29,320 & 75.0 & 75.0 & 0.0 & 73.5 \\
 
 \textbf{Baselines in the main study.} Trivial baselines (flag-all, flag-none, random at the base rate) are reported beside every F1, following~\cite{ji2026stepgap}. The fixed-scope conventions of prior benchmarks act as the comparison condition for the scope protocol: $\sigma=\mathrm{acc}$ reproduces the StepGap convention~\cite{ji2026stepgap} and $\sigma=\mathrm{pool}$ the full-context convention~\cite{pham2026grace,chu2026locally,kwon2026safe}.
 
-\subsection{Pilot Experiment: Results}
-\textbf{Setup.} The full pipeline was run end to end on 100 questions sampled from the MuSiQue training split (the validation sample used for tuning; these results are therefore not comparable to published MuSiQue figures). Search-R1 generated 296 traces under the clean, removed, and counterfactual conditions; for 4 questions no valid same-type substitute existed, so the counterfactual condition has 96 questions. Rule-based extraction yielded 876 step claims, of which 114 were labelled by construction and 762 by the Llama-3.1-8B judge. NLI, MiniCheck, and the Mistral-7B LLM judge scored every claim under all five scopes (13,140 scores). The 299-question test run and human validation are the next stages. All intervals are 95\% question-level bootstrap intervals ($B=10{,}000$, 100 clusters).
+\subsection{Pilot Study}
+The full pipeline was first run on 100 questions sampled from the MuSiQue training split (876 step claims). The pilot served three purposes: checking every stage end to end, fixing the analysis settings before the test set was scored (the R@95 operating point, the cascade grid and $\delta=0.02$, and the cascade band), and revealing one methodological problem. LLM decontextualization, planned as the claim-preparation step, degraded claims: it merged unrelated facts into one claim and resolved references to the wrong entity. Because Search-R1 already states its intermediate facts explicitly (e.g., ``Gandhi Smriti is located in New Delhi''), rule-based extraction of the generator's own sentences was adopted; it is deterministic and adds no content. The pilot results agree in direction with those below, with one exception noted in the RQ1 discussion.
+
+\subsection{Main Results on the Test Set}
+\textbf{Setup.} The test study uses 299 MuSiQue development questions (155 two-hop, 94 three-hop, 50 four-hop). Search-R1 generated 891 traces under the clean, removed, and counterfactual conditions; for 6 questions no valid same-type substitute existed. Rule-based extraction yielded 2,761 step claims from 3,689 non-empty steps; 235 were labelled by construction and 2,526 by the Llama-3.1-8B judge. NLI, MiniCheck-RoBERTa-L, and the Mistral-7B LLM judge scored every claim under all five scopes (41,415 scores). All intervals are 95\% question-level bootstrap intervals ($B=5{,}000$, 299 clusters). The full run took 5.7 GPU-hours on two T4 GPUs.
 
 \begin{table}[t]
-\caption{Pilot: generator behaviour and step labels by condition (100 MuSiQue questions).}\label{tab:pilot}
+\caption{Test set: generator behaviour and step labels by condition (299 MuSiQue development questions).}\label{tab:gen}
 \centering\footnotesize
 \begin{tabular}{@{}lccc@{}}
 \toprule
  & Clean & Removed & Counterfactual \\
 \midrule
-Questions & 100 & 100 & 96 \\
-Exact match (\%) & 41.0 & 23.0 & 25.0 \\
-Mean steps per trace & 3.81 & 4.26 & 4.24 \\
-No answer within budget & 3 & 11 & 11 \\
-Step claims & 275 & 303 & 298 \\
-Ungrounded claims ($y^{(\mathrm{acc})}=1$) & 19 & 107 & 35 \\
-Ungrounded rate (\%) & 6.9 & 35.3 & 11.7 \\
-\quad of which by construction & -- & 10 (MB) & 9 (CC) \\
+Questions & 299 & 299 & 293 \\
+Exact match (\%) & 40.1 & 28.4 & 27.0 \\
+Mean steps per trace & 4.05 & 4.41 & 4.32 \\
+No answer within budget & 27 & 44 & 43 \\
+Step claims & 886 & 939 & 936 \\
+Ungrounded claims ($y^{(\mathrm{acc})}=1$) & 104 & 350 & 153 \\
+Ungrounded rate (\%) & 11.7 & 37.3 & 16.3 \\
+\quad of which by construction & -- & 16 (MB) & 18 (CC) \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\textbf{HLEP manipulation check.} Table~\ref{tab:pilot} shows that the perturbations have the intended effect. Removing the gold paragraph of one hop raises the share of ungrounded step claims from 6.9\% to 35.3\% and lowers exact match from 41\% to 23\%; the generator also searches more and abandons more questions. In the counterfactual condition, 95 claims repeat the edited fact found in the evidence and only 9 restate the original fact from memory, so Search-R1 largely follows its retrieved evidence. The per-type counts (10 Missing Bridge, 9 Contradicted Claim) are too small for the per-type analysis of RQ2, which requires the test run.
+\textbf{HLEP manipulation check.} The perturbations have the intended effect (Table~\ref{tab:gen}). Removing the gold paragraph of one hop raises the share of ungrounded step claims from 11.7\% to 37.3\% and lowers exact match from 40.1\% to 28.4\%; the generator also searches more and abandons more questions. In the counterfactual condition, 201 claims repeat the edited fact found in the evidence and only 18 restate the original fact from memory, so Search-R1 largely follows its retrieved evidence. Exact match on the clean condition is not comparable to published open-retrieval MuSiQue results because each question has its own 20-paragraph pool.
 
-\begin{table}[t]
-\caption{Pilot RQ1: detection by verifier and input scope (gold $g=\mathrm{acc}$; 876 claims, 161 ungrounded). 95\% bootstrap intervals in brackets.}\label{tab:rq1pilot}
+\begin{table*}[t]
+\caption{RQ1 on the test set: detection by verifier and input scope (gold $g=\mathrm{acc}$; 2,761 claims, 607 ungrounded). 95\% bootstrap intervals in brackets; time is mean seconds per claim.}\label{tab:rq1}
 \centering\footnotesize
-\setlength{\tabcolsep}{3pt}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{@{}lcccc@{}}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}l ccc ccc ccc@{}}
 \toprule
- & \multicolumn{2}{c}{NLI (DeBERTa)} & \multicolumn{2}{c}{MiniCheck-RoBERTa-L} \\
-\cmidrule(lr){2-3}\cmidrule(l){4-5}
-Scope & AUROC & R@95 & AUROC & R@95 \\
+ & \multicolumn{3}{c}{NLI (DeBERTa-v3-large)} & \multicolumn{3}{c}{MiniCheck-RoBERTa-L} & \multicolumn{3}{c}{LLM judge (Mistral-7B)} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(l){8-10}
+Scope & AUROC & R@95 & s & AUROC & R@95 & s & AUROC & R@95 & s \\
 \midrule
-$\Eloc$ & 0.833 {\tiny[.796,.867]} & 0.298 {\tiny[.187,.419]} & 0.824 {\tiny[.778,.866]} & 0.180 {\tiny[.092,.319]} \\
-$\Eacc$ & 0.843 {\tiny[.806,.876]} & 0.304 {\tiny[.200,.411]} & 0.840 {\tiny[.795,.881]} & 0.217 {\tiny[.141,.407]} \\
-$\Etraj$ & 0.828 {\tiny[.791,.863]} & 0.217 {\tiny[.132,.333]} & 0.829 {\tiny[.784,.871]} & 0.205 {\tiny[.110,.360]} \\
-$\Epool$ & 0.830 {\tiny[.791,.866]} & 0.143 {\tiny[.086,.312]} & 0.822 {\tiny[.776,.867]} & 0.211 {\tiny[.108,.382]} \\
-$\Epad$ & 0.826 {\tiny[.789,.860]} & 0.230 {\tiny[.128,.344]} & 0.823 {\tiny[.776,.864]} & 0.186 {\tiny[.082,.317]} \\
-\midrule
-Time per claim, $\Eacc$ / $\Epool$ (s) & \multicolumn{2}{c}{0.091 / 0.443} & \multicolumn{2}{c}{0.143 / 0.612} \\
+$\Eloc$ & .842 {\tiny[.814,.868]} & .234 {\tiny[.166,.304]} & 0.07 & .840 {\tiny[.812,.866]} & .313 {\tiny[.231,.385]} & 0.10 & .708 {\tiny[.677,.739]} & .425 {\tiny[.353,.496]} & 0.25 \\
+$\Eacc$ & \textbf{.853} {\tiny[.824,.879]} & .282 {\tiny[.222,.365]} & 0.10 & \textbf{.855} {\tiny[.826,.880]} & \textbf{.359} {\tiny[.285,.457]} & 0.14 & .703 {\tiny[.671,.732]} & .425 {\tiny[.359,.491]} & 0.24 \\
+$\Etraj$ & .839 {\tiny[.809,.865]} & .221 {\tiny[.152,.343]} & 0.12 & .833 {\tiny[.803,.860]} & .311 {\tiny[.221,.372]} & 0.19 & .677 {\tiny[.647,.705]} & .371 {\tiny[.303,.440]} & 0.23 \\
+$\Epool$ & .829 {\tiny[.798,.857]} & .301 {\tiny[.213,.364]} & 0.43 & .822 {\tiny[.790,.851]} & .300 {\tiny[.237,.366]} & 0.62 & .638 {\tiny[.604,.670]} & .176 {\tiny[.121,.254]} & 1.02 \\
+$\Epad$ & .842 {\tiny[.813,.868]} & .265 {\tiny[.192,.326]} & 0.10 & .839 {\tiny[.810,.865]} & .313 {\tiny[.246,.383]} & 0.15 & .682 {\tiny[.654,.711]} & .119 {\tiny[.080,.160]} & 0.44 \\
 \bottomrule
-\end{tabular}}
-\end{table}
+\end{tabular}
+\end{table*}
 
 \begin{table}[t]
-\caption{Pilot tests (paired differences, 95\% bootstrap intervals). H1a tests are Holm-corrected; the others are exploratory.}\label{tab:tests}
+\caption{Test-set hypothesis tests (paired differences, 95\% bootstrap intervals). The six H1a tests are Holm-corrected; the others are secondary, with uncorrected $p$.}\label{tab:tests}
 \centering\footnotesize
 \resizebox{\columnwidth}{!}{%
 \begin{tabular}{@{}lccc@{}}
 \toprule
-Comparison & $\Delta$ & 95\% CI & $p$ (Holm) \\
+Comparison & $\Delta$ & 95\% CI & $p$ \\
 \midrule
-H1a NLI: R@95 $\Eacc-\Etraj$ & $+$0.087 & [$+$0.000, $+$0.153] & 0.31 \\
-H1a NLI: R@95 $\Eacc-\Epool$ & $+$0.161 & [$-$0.006, $+$0.250] & 0.32 \\
-H1a MiniCheck: R@95 $\Eacc-\Etraj$ & $+$0.012 & [$-$0.015, $+$0.093] & 0.58 \\
-H1a MiniCheck: R@95 $\Eacc-\Epool$ & $+$0.006 & [$-$0.060, $+$0.108] & 1.00 \\
-H1a LLM judge: R@95 $\Eacc-\Etraj$ & $+$0.050 & [$-$0.169, $+$0.290] & 0.59 \\
-H1a LLM judge: R@95 $\Eacc-\Epool$ & $-$0.130 & [$-$0.235, $+$0.142] & 1.00 \\
+\multicolumn{4}{@{}l}{\textit{H1a: R@95 under $\Eacc$ minus later scopes ($p_{\mathrm{Holm}}$)}} \\
+NLI: $\Eacc-\Etraj$ & $+$0.061 & [$-$0.024, $+$0.113] & 0.36 \\
+NLI: $\Eacc-\Epool$ & $-$0.020 & [$-$0.093, $+$0.089] & 0.90 \\
+MiniCheck: $\Eacc-\Etraj$ & $+$0.048 & [$+$0.020, $+$0.117] & \textbf{0.044} \\
+MiniCheck: $\Eacc-\Epool$ & $+$0.059 & [$+$0.000, $+$0.138] & 0.16 \\
+LLM judge: $\Eacc-\Etraj$ & $+$0.054 & [$+$0.008, $+$0.105] & 0.10 \\
+LLM judge: $\Eacc-\Epool$ & $+$0.249 & [$+$0.165, $+$0.327] & \textbf{0.007} \\
 \midrule
-NLI: AUROC $\Eacc-\Epool$ & $+$0.013 & [$-$0.005, $+$0.033] & -- \\
-MiniCheck: AUROC $\Eacc-\Epool$ & $+$0.018 & [$+$0.003, $+$0.035] & -- \\
-NLI: R@95 $\Eloc-\Epad$ (length control) & $+$0.068 & [$-$0.015, $+$0.144] & -- \\
-H1b: R@95 NLI$-$MiniCheck at $\Eacc$ & $+$0.087 & [$-$0.107, $+$0.201] & -- \\
-H1b: R@95 NLI$-$MiniCheck at $\Epool$ & $-$0.068 & [$-$0.220, $+$0.125] & -- \\
+\multicolumn{4}{@{}l}{\textit{AUROC under $\Eacc$ minus later scopes}} \\
+NLI: $\Eacc-\Etraj$ / $\Eacc-\Epool$ & $+$0.015 / $+$0.025 & [.006,.025] / [.011,.039] & $<$0.01 \\
+MiniCheck: $\Eacc-\Etraj$ / $\Eacc-\Epool$ & $+$0.022 / $+$0.033 & [.011,.034] / [.019,.049] & $<$0.01 \\
+LLM judge: $\Eacc-\Etraj$ / $\Eacc-\Epool$ & $+$0.026 / $+$0.065 & [.005,.047] / [.026,.105] & $<$0.02 \\
 \midrule
-Later-supported rate (Eq.~\ref{eq:lsr}) & 0.242 & [0.164, 0.328] & -- \\
+\multicolumn{4}{@{}l}{\textit{Length control: R@95 under $\Eloc$ minus $\Epad$}} \\
+NLI / MiniCheck & $-$0.031 / 0.000 & [$-$.086,.027] / [$-$.040,.019] & 0.35 / 1.0 \\
+LLM judge & $+$0.306 & [$+$0.236, $+$0.375] & $<$0.001 \\
+\midrule
+\multicolumn{4}{@{}l}{\textit{H1b: NLI minus MiniCheck}} \\
+AUROC at $\Eacc$ / $\Epool$ & $-$0.001 / $+$0.007 & [$-$.022,.019] / [$-$.017,.030] & 0.90 / 0.56 \\
+R@95 at $\Eacc$ / $\Epool$ & $-$0.077 / $+$0.002 & [$-$.182,.017] / [$-$.104,.077] & 0.11 / 0.92 \\
+\midrule
+\multicolumn{4}{@{}l}{\textit{H1c: AUROC with gold acc minus gold pool}} \\
+NLI given $\Eacc$ / $\Epool$ & $+$0.027 / $-$0.004 & [.000,.055] / [$-$.034,.024] & 0.05 / 0.80 \\
+MiniCheck given $\Eacc$ / $\Epool$ & $+$0.048 / $+$0.004 & [.019,.079] / [$-$.027,.034] & $<$0.01 / 0.78 \\
+\midrule
+Later-supported rate (Eq.~\ref{eq:lsr}) & 0.173 & [0.132, 0.215] & -- \\
 \bottomrule
 \end{tabular}}
 \end{table}
 
-\textbf{RQ1: evidence scope.} Threshold-free ranking quality is stable across scopes: AUROC lies between 0.822 and 0.843 for both verifiers, with every interval overlapping, and both verifiers score highest under $\Eacc$, the scope that matches the primary gold definition (Table~\ref{tab:rq1pilot}). At the strict operating point the picture differs by verifier. For NLI, R@95 falls from 0.304 under $\Eacc$ to 0.217 under $\Etraj$ and 0.143 under $\Epool$, which is the direction predicted by H1a: when the verifier also sees documents that the generator had not yet retrieved, it misses more ungrounded steps. MiniCheck shows no such drop. After Holm correction none of the six H1a differences is significant in the pilot ($p_{\mathrm{Holm}}\ge0.31$; Table~\ref{tab:tests}), so H1a is \emph{not supported at pilot scale}, and the NLI pattern needs the larger test run. Among the exploratory comparisons, MiniCheck's AUROC is slightly higher under $\Eacc$ than under $\Epool$ ($+0.018$, interval excluding zero, uncorrected).
+\textbf{RQ1: evidence scope.} The threshold-free result is consistent across all three verifiers: each ranks ungrounded steps best under $\Eacc$, the evidence available when the step was written, and significantly worse when it also sees later evidence ($\Etraj$) or all documents ($\Epool$), with every interval excluding zero (Table~\ref{tab:tests}). For the two small verifiers the loss is small (0.015--0.033 AUROC); for the LLM judge it is larger (0.065). At the strict operating point the evidence is weaker: two of the six primary H1a tests remain significant after Holm correction, MiniCheck under $\Etraj$ ($+0.048$, $p_{\mathrm{Holm}}=0.044$) and the LLM judge under $\Epool$ ($+0.249$, $p_{\mathrm{Holm}}=0.007$). The NLI pattern seen in the pilot (R@95 halving under $\Epool$) did not replicate: on the test set NLI's R@95 under $\Epool$ (0.301) is close to that under $\Eacc$ (0.282). H1a is therefore \emph{partly supported}: evidence beyond the step's prefix consistently lowers measured detection quality, but the size of the effect at a fixed operating point depends on the verifier.
 
-\textbf{Masking and its mechanism.} The opportunity for masking is substantial: 24.2\% [16.4\%, 32.8\%] of the 161 steps that were ungrounded when written are entailed by evidence retrieved later in the same trace (LSR), so an evaluation that uses $\Etraj$ or $\Epool$ counts about one in four of them as supported. The length control suggests part of the effect comes from the amount of text rather than its content: adding irrelevant paragraphs to $\Eloc$ lowers NLI's R@95 from 0.298 to 0.230, although this difference is not significant. A plausible mechanism is the max-aggregation of Eq.~\eqref{eq:score}: every additional paragraph is another chance for a spurious high support score.
+\textbf{Masking and length.} The opportunity for masking is substantial and stable: 17.3\% [13.2\%, 21.5\%] of the 607 steps that were ungrounded when written are entailed by evidence retrieved later in the same trace, so an evaluation using $\Etraj$ or $\Epool$ counts about one in six of them as supported. The length-matched control separates two mechanisms. For NLI and MiniCheck, adding irrelevant paragraphs to $\Eloc$ does not change R@95 (differences $-0.031$ and $0.000$, not significant), so their scope effect comes from the content of later evidence rather than from its amount. The LLM judge, in contrast, is strongly affected by irrelevant text alone: padding lowers its R@95 from 0.425 to 0.119 ($+0.306$ [0.236, 0.375]), which also explains most of its large drop under $\Epool$.
 
-\textbf{H1b and H1c.} At the strict operating point, NLI ranks above MiniCheck under $\Eacc$ (R@95 0.304 versus 0.217) but below it under $\Epool$ (0.143 versus 0.211), the pattern H1b looks for; both intervals include zero, and the AUROC differences between verifiers are at most 0.007, so no reversal is established. Under the alternative gold definition $g=\mathrm{pool}$, AUROC is 0.009--0.039 lower than under $g=\mathrm{acc}$, with intervals including zero (H1c not supported). The two gold definitions disagree on 14\% of claims; 48 claims are judged supported by $\Eacc$ yet unsupported by its superset $\Epool$, which is logically inconsistent and indicates that the LLM judge is less reliable with long evidence. This label noise, together with the human validation still to be done, is the main caveat of the pilot.
+\textbf{H1b and H1c.} No ranking reversal occurs between NLI and MiniCheck: under every scope their AUROCs differ by at most 0.007 and their R@95 by amounts whose intervals include zero, and the LLM judge ranks last on AUROC under every scope; H1b is \emph{not supported}. The gold definition does matter: for verifiers given $\Eacc$, AUROC is 0.027 (NLI, [0.000, 0.055]) and 0.048 (MiniCheck, [0.019, 0.079]) lower when the gold labels are defined over $\Epool$ instead of $\Eacc$, so H1c is \emph{supported} for the $\Eacc$ input. The two gold definitions disagree on 12.9\% of claims: 238 claims are ungrounded at the step but supported overall, which is the masking the framework targets, and 116 (4.2\%) are judged supported by $\Eacc$ yet unsupported by its superset $\Epool$, which is logically inconsistent and shows that the LLM label judge is less reliable with long evidence.
 
 \begin{table}[t]
-\caption{Pilot: LLM judge (Mistral-7B) by scope and calibrated cascade (scope $\Eacc$). Cascade bands are calibrated on one half of the questions and evaluated on the other (two-fold). 95\% bootstrap intervals.}\label{tab:judge}
+\caption{RQ2: recall by error type at the R@95 threshold (threshold set on all supported claims), with 95\% bootstrap intervals.}\label{tab:rq2}
 \centering\footnotesize
 \resizebox{\columnwidth}{!}{%
 \begin{tabular}{@{}lccc@{}}
 \toprule
-LLM judge, scope & AUROC & R@95 & s/claim \\
+Verifier, scope & MB ($n=16$) & CC ($n=18$) & UNG, judge-labelled ($n=573$) \\
 \midrule
-$\Eloc$ & 0.659 {\tiny[.612,.708]} & 0.180 {\tiny[.110,.369]} & 0.248 \\
-$\Eacc$ & 0.651 {\tiny[.600,.705]} & 0.075 {\tiny[.027,.353]} & 0.247 \\
-$\Etraj$ & 0.617 {\tiny[.574,.660]} & 0.025 {\tiny[.000,.267]} & 0.245 \\
-$\Epool$ & 0.624 {\tiny[.567,.681]} & 0.205 {\tiny[.000,.316]} & 1.038 \\
-$\Epad$ & 0.621 {\tiny[.570,.671]} & 0.062 {\tiny[.014,.124]} & 0.440 \\
-\midrule
-Placement ($\Eacc$) & AUROC & escalated & s/claim \\
-\midrule
-P1: LLM judge on every step & 0.651 & 100\% & 0.247 \\
-P2: NLI on every step & 0.843 & -- & 0.091 \\
-P2: MiniCheck on every step & 0.840 & -- & 0.143 \\
-P3: cascade, NLI $\rightarrow$ judge & 0.843 & 0\% & 0.091 \\
-P3: cascade, MiniCheck $\rightarrow$ judge & 0.840 & 0\% & 0.143 \\
+NLI, $\Eacc$ & 0.31 {\tiny[0.00,0.68]} & 0.17 {\tiny[0.00,0.41]} & 0.28 {\tiny[0.22,0.37]} \\
+NLI, $\Epool$ & 0.38 {\tiny[0.05,0.67]} & 0.22 {\tiny[0.00,0.44]} & 0.30 {\tiny[0.22,0.37]} \\
+MiniCheck, $\Eacc$ & 0.38 {\tiny[0.05,0.68]} & 0.11 {\tiny[0.00,0.29]} & 0.37 {\tiny[0.29,0.47]} \\
+MiniCheck, $\Epool$ & 0.19 {\tiny[0.00,0.44]} & 0.06 {\tiny[0.00,0.18]} & 0.31 {\tiny[0.25,0.38]} \\
 \bottomrule
 \end{tabular}}
 \end{table}
 
-\textbf{LLM judge and RQ3.} The Mistral-7B judge is markedly weaker than both small verifiers: under $\Eacc$ its AUROC is 0.651, lower than NLI by 0.191 [0.131, 0.252] and than MiniCheck by 0.189 [0.129, 0.247], and it is also slower (Table~\ref{tab:judge}). Most of its scores are exactly 1.0: it reports full confidence that a claim is supported for most steps, so its scores rank ungrounded steps poorly. Its AUROC does not differ significantly between $\Eacc$ and $\Epool$ ($+0.027$ [$-0.038$, $+0.088$]). Because the expensive verifier is the less accurate one, the calibrated cascade selects an empty escalation band in both folds: no escalation band raises AUROC above the cheap verifier alone, and every placement that calls the judge is dominated in both detection and cost. With this judge, P3 reduces to P2, and the cheap verifier alone achieves 0.843 AUROC at 37\% of the judge's time per claim (NLI). Formally, H3 is supported, since the cascade's AUROC exceeds the judge's by 0.191 [0.131, 0.252] at lower cost, but only trivially, because the cascade never calls the judge. This answers RQ3 for the pilot configuration; it may partly reflect the way the judge is queried and scored (normalized probability of option A), and a stronger or differently prompted judge could change it. Since the gold labels also come from an LLM judge (Llama-3.1-8B), agreement between judges is a further point for the human validation.
+\textbf{RQ2: error types.} Hop-localized perturbation produced fewer typed errors than expected: 16 Missing Bridge and 18 Contradicted Claim labels by construction, because Search-R1 usually reacts to a perturbation either by searching again or by adopting the edited fact. The point estimates suggest that contradicted claims, which restate a fact from memory against contradicting evidence, are the hardest to detect (MiniCheck recall 0.11 under $\Eacc$ versus 0.38 for missing bridges), but with these sample sizes every per-type interval is wide and no difference is significant (Table~\ref{tab:rq2}). H2a and H2b are therefore \emph{not testable} at this scale; the typed labels need either more questions or a perturbation that the generator cannot route around.
 
-\textbf{Cost.} Verifying against $\Epool$ requires 17,217 claim--paragraph pairs against 3,946 for $\Eacc$; per claim it takes 4.9 times longer for NLI (0.443\,s versus 0.091\,s) and 4.3 times longer for MiniCheck, with no gain in detection. The full-context convention is therefore the most expensive and, in this pilot, not the most accurate.
+\begin{table}[t]
+\caption{RQ3 on the test set: verification placements under $\Eacc$. Cascade bands were calibrated on the pilot and applied unchanged.}\label{tab:rq3}
+\centering\footnotesize
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Placement & AUROC & Escalated & s/claim \\
+\midrule
+P1: LLM judge on every step & 0.703 & 100\% & 0.235 \\
+P2: NLI on every step & 0.853 & -- & 0.098 \\
+P2: MiniCheck on every step & 0.855 & -- & 0.142 \\
+P3: cascade NLI $\rightarrow$ judge (H3 band) & 0.853 & 0\% & 0.098 \\
+P3: cascade MiniCheck $\rightarrow$ judge (H3 band) & 0.855 & 0\% & 0.142 \\
+P3: cascade NLI $\rightarrow$ judge (max-AUROC band) & 0.845 & 1.8\% & 0.102 \\
+P3: cascade MiniCheck $\rightarrow$ judge (max-AUROC band) & 0.851 & 1.1\% & 0.144 \\
+\bottomrule
+\end{tabular}}
+\end{table}
 
-\textbf{Methodological finding.} LLM decontextualization, planned as the claim-preparation step, degraded claims in the first labelling run: it merged unrelated facts into one claim and resolved references to the wrong entity. Because Search-R1 already states its intermediate facts explicitly (e.g., ``Gandhi Smriti is located in New Delhi''), rule-based extraction of the generator's own sentences was adopted; it is deterministic, adds no content, and kept 876 claims from 1,186 steps.
+\textbf{LLM judge and RQ3.} The Mistral-7B judge ranks ungrounded steps markedly worse than both small verifiers: under $\Eacc$ its AUROC is 0.150 [0.115, 0.187] below NLI and 0.152 [0.119, 0.186] below MiniCheck, and it is also slower. Its scores are nearly binary (85\% are exactly 1.0), which explains a mixed profile: the few steps it doubts are usually ungrounded, giving it the highest R@95 under $\Eacc$ (0.425), but it cannot rank the large mass it accepts. Because the expensive verifier is the weaker ranker, the band calibrated on the pilot under H3 is empty, and on the test set the cascade never escalates (Table~\ref{tab:rq3}); even the band that maximised pilot AUROC slightly lowers test AUROC. Formally H3 holds, since the cascade's AUROC exceeds the judge's at lower cost, but only trivially. With this judge, the best placement is a small verifier on every step: NLI reaches 0.853 AUROC at 42\% of the judge's time per claim. This conclusion may depend on how the judge is queried and scored (normalized probability of option A); a stronger or differently prompted judge could change it.
 
-\textbf{Remaining protocol.} The test study repeats this procedure on 299 development questions (155 two-hop, 94 three-hop, 50 four-hop) with the LLM-judge verifier and the calibrated cascade (RQ3); thresholds and the cascade tolerance are fixed on the pilot before the test set is scored. Label validity will be assessed on a double-annotated sample of perturbed steps (labels-by-construction precision, Krippendorff's $\alpha$).
+\textbf{Cost.} Verifying against $\Epool$ requires 54,252 claim--paragraph pairs against 11,998 for $\Eacc$; per claim it takes about 4.4 times longer for NLI (0.432\,s versus 0.098\,s) and MiniCheck (0.624\,s versus 0.142\,s), and 4.3 times longer for the LLM judge. The full-context convention is therefore the most expensive and, for all three verifiers, the least accurate by AUROC.
+
+\textbf{Remaining validation.} Label validity is the main open threat: 91\% of labels come from an LLM judge, and the inconsistencies above show it is imperfect. A double-annotated sample of steps (precision of labels by construction, judge--human agreement, Krippendorff's $\alpha$) is the next step before the results can be treated as final.
 
 \subsection{Planned Ablations and Additional Validation}
-Four ablations isolate design choices: (A1) including preceding claims as premises, the convention of~\cite{chu2026locally,kim2026prostep}; (A2) rule-extracted versus LLM-decontextualized claims~\cite{choi2021decontext}; (A3) paragraph-level max aggregation versus a single truncated window for encoder verifiers; and (A4) sensitivity of the cascade to the band and to $\delta$. To assess leakage of the datasets into pretraining~\cite{sainz2023contamination}, results will be stratified by whether the generator answers the question correctly closed-book. In addition, MuSiQue was composed from single-hop questions of existing datasets, including Natural Questions, on which the Search-R1 generator was trained; the dataset release lists the single-hop question identifiers used in its development and test sets, so results will also be reported with and without questions whose single-hop components overlap these sources. Computational cost (GPU-hours for generation and for each verifier) will be reported alongside the results.
+Four ablations isolate design choices: (A1) including preceding claims as premises, the convention of~\cite{chu2026locally,kim2026prostep}; (A2) rule-extracted versus LLM-decontextualized claims~\cite{choi2021decontext}; (A3) paragraph-level max aggregation versus a single truncated window for encoder verifiers; and (A4) sensitivity of the cascade to the band and to $\delta$. None of A1--A4 has been run yet. To assess leakage of the datasets into pretraining~\cite{sainz2023contamination}, results were to be stratified by whether the generator answers each question correctly closed-book. This check failed as designed: when its searches return no documents, the search-trained generator keeps searching until its budget is exhausted and answers only 6 of 299 questions, so closed-book accuracy (0\%) says nothing about memorization. A forced-answer prompt is needed instead. In addition, MuSiQue was composed from single-hop questions of existing datasets, including Natural Questions, on which the Search-R1 generator was trained; the dataset release lists the single-hop question identifiers used in its development and test sets, so results will also be reported with and without questions whose single-hop components overlap these sources. 
 
 \section{Conclusion}\label{sec:conclusion}
 This work set out to determine whether the evaluation conventions of step-level grounding verification for iterative multi-hop RAG affect what we conclude about verifiers. Rather than proposing another verifier, it contributes a measurement framework: hop-localized evidence perturbation with typed labels by construction, a scope-controlled verification protocol with a length control and a masking measure (the later-supported rate), and a cascade calibrated under an explicit detection tolerance. The framework is fully implemented and unit-tested, and the base method was reproduced exactly: MiniCheck-Flan-T5-L reaches the published 75.0\% average balanced accuracy on the 11 LLM-AggreFact datasets, with 10 datasets identical and one within 0.2 points, and both MiniCheck variants are accurate on the step-level REVEAL benchmark.
 
-A 100-question pilot ran the full pipeline end to end. It confirms that hop-localized perturbation produces the intended ungrounded steps (6.9\% to 35.3\%) and that the masking opportunity is real: about one in four ungrounded steps is entailed by evidence retrieved later. For the NLI verifier, recall at a 5\% false-alarm rate halves when it sees all documents, but this and the other H1 and H2 tests are not significant at pilot scale, so those hypotheses remain open; the full-context convention was, however, 4.3--4.9 times more expensive with no gain in detection. For RQ3, the pilot gives a clear answer for this configuration: a Mistral-7B judge was less accurate than both small verifiers (AUROC 0.65 versus 0.84), so a calibrated cascade never escalated to it and H3 holds only trivially; the cheap verifier alone was the most accurate and cheapest placement. Objectives O1 and O3 are therefore partly addressed, while O2 requires the test run. The study also has inherent limitations. It assesses local step support only, not question alignment or answer closure~\cite{chu2026locally}. It uses English Wikipedia data, one generator family, and closed per-question pools, so transfer to open-corpus retrieval is untested. Perturbations are controlled but artificial, and the mapping to error types is approximate. Pretraining exposure is controlled by the counterfactual condition and closed-book stratification, not eliminated. Clean-condition labels rely on an LLM judge, and the pilot showed that this judge is inconsistent on some claims when given long evidence; human validation is therefore essential.
+On 299 MuSiQue questions (2,761 step claims), the evidence rule mattered for what is measured. All three verifiers rank ungrounded steps best when given only the evidence available when the step was written, and significantly worse when given later or pooled evidence; about one in six ungrounded steps (17.3\%) is entailed by evidence retrieved later, so trajectory-level or full-context evaluation counts them as supported. The size of the effect differs by verifier: small for NLI and MiniCheck (at most 0.033 AUROC, driven by the content of later evidence rather than its length) and large for a Mistral-7B judge, which is also sensitive to irrelevant text alone. The gold-label definition changes AUROC by up to 0.048, while the ranking of NLI and MiniCheck did not change under any rule. The full-context convention was about 4.4 times more expensive and the least accurate by AUROC. The LLM judge was a weaker ranker than both small verifiers (AUROC 0.70 versus 0.85), so a calibrated cascade never escalated and a small verifier on every step was the best placement. Hence H1a and H1c are partly supported, H1b is not, H3 holds only trivially, and the per-error-type questions (H2) could not be tested because perturbation produced only 34 typed errors. Objectives O1 and O3 are therefore addressed for this configuration and O2 is not.
 
-Future work will first complete the 299-question test study with the LLM-judge verifier, the cascade, and human validation, then add the distractor condition, the 2WikiMultihopQA replication, the $\Epool$ gold definition, and placements P4--P5. Further directions are a second generator with a different step format, extension to open-corpus retrieval, and using the later-supported rate as a training signal for verifiers that must judge the evidence available at generation time rather than all evidence retrieved.
+The main limitations are that 91\% of the labels come from an LLM judge, which was shown to be inconsistent on 4.2\% of claims, and that the study uses one generator, one dataset, and closed per-question pools. Future work will first validate the labels against double human annotation, then enlarge the typed-error set (more questions or perturbations the generator cannot route around), test a stronger LLM judge, run ablations A1--A4 and a forced-answer leakage check, and replicate on 2WikiMultihopQA with a second generator and open-corpus retrieval.
 
 \bibliographystyle{IEEEtran}
 \bibliography{references}
